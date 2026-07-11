@@ -1,36 +1,37 @@
 # A Township Tale — Dedicated Server (Docker + Wine)
 
-Run a **default Modding Tavern v1.6.2** *A Township Tale* server headless on any
-Linux box, in Docker, under Wine. One command to install; you supply your own
-patched game files.
+Run a **Modding Tavern** *A Township Tale* server headless on any Linux VPS, in
+Docker, under Wine. Friends join by **typing your IP** into the stock
+TavernLauncher — no per-friend files to hand out. One command to install; **you
+supply your own patched game files** (this kit ships no game binaries).
+
+> **Never done this before?** Follow **[SETUP-GUIDE.md](SETUP-GUIDE.md)** — a
+> step-by-step, zero-experience walkthrough (buy a VPS → run one command → play).
+> This README is the technical reference.
 
 > **What this is:** deployment tooling only. It contains **no game binaries** — you
-> point it at your own patched game folder (or a URL you host). See [NOTICE.md](NOTICE.md).
->
-> **Status:** the server boot path matches the official `startServer.bat` and proven
-> prior art, but the Linux/Wine build has not been CI-tested — your first run is the
-> real test. Community listing + server name are **not wired up yet** (see below).
+> point it at your own patched game folder. See [NOTICE.md](NOTICE.md).
 
 ---
 
 ## Quick start (one command)
 
-On a fresh Linux VPS with `curl` + `git`:
+On a fresh Ubuntu VPS with `curl`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Nyx12012/att-server-docker/main/install.sh | bash
 ```
 
 That installs Docker (if missing), clones this repo to `~/att-server-docker`, creates
-`.env`, then stops and tells you to add your game files. Add them one of two ways:
+`.env` with a random per-server listing token, then stops and asks for your game
+files. Add them one of two ways:
 
-- **You have the patched folder already:** copy it to `~/att-server-docker/game/`
-  (so `game/A Township Tale.exe` exists), then run `./install.sh` again; **or**
-- **Host it yourself:** put a `.zip`/`.tar.gz` of the folder on a URL you control,
-  set `GAME_URL=` in `.env`, then run `./install.sh` again — it downloads + extracts.
+- **Upload a zip:** put a `game.zip` of your patched folder at `~/att-server-docker/game.zip`; **or**
+- **Host it yourself:** put a `.zip`/`.tar.gz` of the folder on a private URL **you**
+  control (e.g. your own Dropbox direct link) and set `GAME_URL=` in `.env`.
 
-That's it — it builds and starts the server. To hand this to a friend, they run the
-exact same one-liner (with your repo URL) and supply their own game files.
+Then set your `SERVER_NAME` in `.env` and run `./install.sh` again. It extracts the
+game, opens the firewall, and starts the server **plus** the join-by-IP heartbeat.
 
 ### Or clone-then-run
 ```bash
@@ -41,32 +42,37 @@ cd att-server-docker
 
 ---
 
-## Getting the patched game files
+## Getting the patched game files (you make these; we ship none)
 
-The game itself is Windows software patched by the Modding Tavern **TavernLauncher**.
-To produce the folder this server needs:
+The game is Windows software patched by the Modding Tavern **TavernLauncher**. To
+produce the folder this server needs, on **your own Windows PC**:
 
-1. On Windows, install *A Township Tale*, run **TavernLauncher – Client/Server**, hit
-   **Patch** then **Mods**. That yields a folder with `A Township Tale.exe`,
-   `version.dll` (MelonLoader), `A Township Tale_Data/`, `MelonLoader/`,
-   `Plugins/TavernLib.dll`, `UserLibs/`, an (empty) `Mods/`, `UserData/`.
-2. Zip that folder and either copy it to the server's `game/` dir or host it and set
-   `GAME_URL`. This is your licensed copy — keep it private.
+1. Install *A Township Tale* (free on Steam), run **TavernLauncher – Server**, hit
+   **Patch** (then **Mods** if you use any). That yields a folder with
+   `A Township Tale.exe`, `version.dll` (MelonLoader), `A Township Tale_Data/`,
+   `MelonLoader/`, `Plugins/TavernLib.dll`, `UserLibs/`, `Mods/`, `UserData/`.
+2. Zip that folder to `game.zip` and upload it to the VPS (or host it and set `GAME_URL`).
+
+This is **your** licensed copy — keep it private. Do **not** redistribute it: ATT
+being free-to-play does not make its binaries free to re-host. Each friend who wants
+to run *their own* server makes their own patched folder the same way.
 
 ---
 
-## Setup details
+## Configuration — `.env`
 
 `.env` (created from `.env.example`) controls everything:
 
 | Var | Meaning |
 |---|---|
 | `ATT_GAME_DIR` | Path to the patched game folder. Default `./game`. |
-| `GAME_URL` | Optional: URL to a zip/tarball of the game folder; auto-downloaded. |
-| `INSTANCE_ID` | Server instance id (default `-1`, matches the official launcher). |
-| `SERVER_PORT` | Game port (default `1757`). |
-| `ATT_ACCESS/REFRESH/IDENTITY_TOKEN` | Offline JWTs (leave as-is; they hit no Alta service). |
-| `SERVER_NAME`, `COMMUNITY_*` | Placeholders for listing — **not active yet** (see below). |
+| `GAME_URL` | Optional: URL to a zip/tarball of **your** game folder; auto-downloaded. |
+| `SERVER_NAME` | Name friends see for your server. No quotes; spaces OK. |
+| `LISTING_TOKEN` | Your private listing key — any long random string, unique to you. `install.sh` fills this in automatically if blank. |
+| `MAX_PLAYERS` | Advertised player cap (cosmetic for the listing). |
+| `COMMUNITY_HOST` | Community backend host. Leave as `themoddingtavern.com`. |
+| `INSTANCE_ID` / `SERVER_PORT` | Instance id (`-1`) and game port (`1757`) — match the official launcher. |
+| `ATT_ACCESS/REFRESH/IDENTITY_TOKEN` | Offline JWTs (leave as-is; they contact no Alta service). |
 
 Manual control instead of the installer:
 ```bash
@@ -78,83 +84,100 @@ docker compose down          # graceful stop
 
 ---
 
-## Testing it works (do this before giving it to anyone)
+## How join-by-IP works (no handouts)
 
-1. **Boot the container** and watch logs:
+Two things together make a friend able to just type your IP and join:
+
+1. **`network_mode: host`** (in `docker-compose.yml`) so the game binds `*:1757`
+   dual-stack on the box. Under Docker's default bridge network it binds IPv6-only
+   and IPv4 joins silently time out — this is the single most important setting.
+2. **The `att-register` heartbeat** (`register.sh`, run by the sidecar container)
+   POSTs your server to the Modding Tavern community backend every 30s as a
+   `headless` server. When a friend types your IP, their launcher first probes
+   `:1762` for an auth service; a headless server never answers there, so the
+   launcher asks the backend "is this IP a known headless server?" — the heartbeat
+   is what makes that answer **yes**, and the launcher then joins directly with no
+   auth handshake.
+
+Your `LISTING_TOKEN` is a **self-chosen** private string (not issued by anyone); it
+just identifies your listing. Each server needs its own.
+
+---
+
+## Ports
+
+| Port | Proto | Role | Firewall |
+|---|---|---|---|
+| 1757 | UDP + TCP | Game traffic (KCP). Players connect here. | **Open** |
+| 1761 | TCP | "Forest"/native web server: world & terrain `/cache`. | **Open** (or friends get broken terrain) |
+| 1762 | TCP | Auth probe. Nothing listens (server is offline-mode). | **Allow, don't drop** — see below |
+| 1763 | TCP | Community API on `themoddingtavern.com`. | **Outbound only** (don't block egress) |
+| 1764 | TCP | Optional admin console (see below). | **Keep closed** (loopback-only) |
+
+**The 1762 gotcha (`install.sh` handles this for you):** nothing runs on 1762, but
+you must **allow** it in the firewall, not drop it. The launcher's probe needs an
+instant *connection refused* (the kernel's RST from a closed port). If the firewall
+silently **drops** 1762 instead, the probe hangs and the join-by-IP fallback can
+fail. So: allowed + nothing listening = refused = correct.
+
+---
+
+## Testing it works (before giving it to anyone)
+
+1. **Boot and watch logs:**
    ```bash
    docker compose logs -f
    ```
    Healthy signs:
-   - `Melon Assembly loaded: 'Plugins/TavernLib.dll'` → MelonLoader injected under
-     Wine (the #1 risk; if missing, it's the `WINEDLLOVERRIDES` — already set).
-   - `Alta.WebServer.WebServerThread ... Running web server` → console/web up.
+   - `Melon Assembly loaded: 'Plugins/TavernLib.dll'` → MelonLoader injected under Wine.
+   - `Alta.WebServer.WebServerThread ... Running web server` → web/cache up.
+   - `att-register` prints it's listing your server (or is quiet = success; it only
+     logs on failure).
    - Red `webapi.townshiptale.com` errors are **expected** (dead Alta endpoints).
 
-2. **Check the game port is listening** inside the box:
+2. **Confirm the listing is live** (from anywhere):
    ```bash
-   docker exec att-server bash -c "ss -lun | grep 1757 || true"
+   curl "http://themoddingtavern.com:1763/servers/lookup?address=$(curl -4 -s ifconfig.me)"
    ```
+   Expect `{"found":true,"kind":"headless","name":"…","port":1757}`.
 
-3. **Join from a real client** (the decisive test): on your Windows PC, use the
-   patched **Client** launcher, add a server by the VPS **public IP**, port **1757**,
-   and connect. If the world loads and you can move around, the server works.
+3. **Join from a real client** (the decisive test): on a Windows PC, patch the game
+   with **TavernLauncher – Client**, type the VPS **public IP** in the launcher, and
+   Join. World loads + you can move around = it works.
 
-4. **Persistence check:** build something, `docker compose down`, `up -d`, rejoin —
-   your changes should still be there (world lives in the `wineprefix` volume).
-
-If 1–3 pass, ship it to your friend. If step 1 shows a Wine/Unity crash, see
-Troubleshooting.
+4. **Persistence:** build something, `docker compose down`, `up -d`, rejoin — your
+   changes persist (world lives in the `wineprefix` volume).
 
 ---
 
-## Ports (per the devs)
+## Optional: admin console
 
-| Port | Proto | Role | Expose to internet? |
-|---|---|---|---|
-| 1757 | UDP (+TCP) | Game traffic (KCP). Players connect here. | **Yes** |
-| 1761 | TCP | "Forest" / native web server: `/cache` + Alta console REST. | Only if needed |
-| 1762 | TCP | Auth. | Keep private |
-| 1763 | TCP | Community API → **themoddingtavern.com** backend. | See below |
-
-Open **1757** (UDP+TCP) to the world. Keep 1761/1762 private unless you need remote
-console. For community listing you'll also need **outbound** internet to
-`themoddingtavern.com` (don't firewall egress if you want to be listed).
-
----
-
-## Server name & community listing — honest status
-
-**Not working yet in this headless build, and here's why:** the display **name**,
-`community_listed`, and `public_hostname` are settings the **Windows launcher** reads
-from its `server_settings.json`. The game's own config files
-(`ServerConfiguration.json`, `GameConfiguration.json`) have **no name field**, and the
-launcher-generated `startServer.bat` passes **no** name/listing flags to the game. So:
-
-- On a **direct-IP** server (what this repo gives you today), there is no display name —
-  players join by IP. That works now.
-- **Community listing + a shown name** are done by the launcher process talking to the
-  community backend (the devs say port **1763 / themoddingtavern.com**). We have **not**
-  reverse-engineered that registration call yet, so this repo does not perform it. The
-  `SERVER_NAME`/`COMMUNITY_*` vars in `.env` are placeholders for when we do.
-
-**To finish this feature**, the next step is to extract the launcher's Python
-(it's PyInstaller) and read exactly how it registers a server with
-`themoddingtavern.com:1763` — then we replicate that call (a small sidecar or an
-entrypoint step) so the container self-lists with your chosen name. Ask and that
-becomes the next task.
+An admin console (run commands like `player list`, spawn items, etc.) can be added
+later. It runs on **1764** and must stay **firewalled/loopback-only** — do **not**
+`ufw allow 1764`, and never move it onto 1762. It's out of scope for the base
+"just host it" flow; see `deploy-console.sh` and the project docs if you want it.
 
 ---
 
 ## Troubleshooting
 
-- **No `TavernLib` line / mods don't load:** confirm the game folder has `version.dll`
-  (MelonLoader) and that `WINEDLLOVERRIDES="version=n,b"` is in the Dockerfile (it is).
-- **Crash during Unity init:** uncomment `RUN winetricks -q vcrun2019` in the Dockerfile
-  and rebuild (`docker compose build --no-cache`).
+- **Players can't connect:** confirm host networking is active
+  (`docker exec att-server ss -lun | grep 1757` shows `*:1757`), and that 1757
+  UDP **and** TCP are open in both ufw **and** your provider's firewall panel.
+- **Broken/no terrain but buildings load:** 1761/tcp isn't open — friends can't pull
+  the world cache. `ufw allow 1761/tcp && ufw reload`.
+- **Join fails, launcher "hangs" authenticating:** your firewall is dropping 1762
+  instead of refusing it. `ufw allow 1762/tcp` (see the 1762 gotcha above).
+- **Not listed / friends' IP-join fails immediately:** check the heartbeat —
+  `docker logs att-register`. Ensure the box has **outbound** access to
+  `themoddingtavern.com:1763`, and that it registered your **IPv4** (the sidecar
+  uses `curl -4`).
+- **No `TavernLib` line / mods don't load:** the game folder is missing `version.dll`
+  (MelonLoader), or `WINEDLLOVERRIDES="version=n,b"` isn't set (it is, in the Dockerfile).
+- **Crash during Unity init:** uncomment `RUN winetricks -q vcrun2019` in the
+  Dockerfile and `docker compose build --no-cache`.
 - **Wine faults early (ptrace/seccomp):** uncomment `cap_add: [SYS_PTRACE]` and
   `security_opt: [seccomp:unconfined]` in `docker-compose.yml`.
-- **Players can't connect:** open 1757 UDP **and** TCP in the VPS firewall/security
-  group; verify with `docker exec att-server ss -lun | grep 1757`.
 - **Voice chat missing:** expected — Vivox voice depended on Alta's cloud.
 
 ---
@@ -163,10 +186,12 @@ becomes the next task.
 
 | File | Role |
 |---|---|
-| `install.sh` | One-command installer (Docker + repo + .env + game files + up). |
+| `SETUP-GUIDE.md` | **Start here if you're new** — zero-experience step-by-step. |
+| `install.sh` | One-command installer (Docker + repo + .env + token + game files + firewall + up). |
+| `register.sh` | The join-by-IP registration heartbeat (run by the `att-register` sidecar). |
 | `Dockerfile` | Ubuntu 22.04 + winehq-stable + Xvfb; seeds the Wine prefix. |
 | `entrypoint.sh` | Starts Xvfb, launches the server, streams logs, handles SIGTERM. |
-| `docker-compose.yml` | Service, volumes, ports, env. |
-| `.env.example` | Config template (tokens, game path, ports, listing placeholders). |
-| `.gitignore` | Blocks `.env` and `game/` from commits. |
+| `docker-compose.yml` | Server + register sidecar, host networking, volumes, env. |
+| `.env.example` | Config template (tokens, game path, server name, listing token). |
+| `.gitignore` | Blocks `.env`, `game/`, and archives from commits. |
 | `NOTICE.md` | Why no game files are included. |

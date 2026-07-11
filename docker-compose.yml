@@ -1,27 +1,40 @@
 services:
+  # The game server itself (headless ATT under Wine).
   att-server:
     build: .
     image: att-server:1.6.2
     container_name: att-server
     restart: unless-stopped
     env_file: .env
+    # REQUIRED. Under Docker's default bridge network the game binds UDP 1757 on
+    # IPv6 only ([::]), so friends connecting over IPv4 hit nothing and every join
+    # silently times out. Host networking makes it bind dual-stack (*:1757)
+    # directly on the box, which is what actually lets people join. Do not swap
+    # this back for a `ports:` block. (See README "Why host networking".)
+    network_mode: host
     volumes:
-      # Your clean, patched default "A Township Tale" server folder.
-      # Defaults to ./game inside the repo (populated by install.sh or by you).
+      # Your own patched "A Township Tale" server folder (you supply this — the
+      # kit ships no game files). Defaults to ./game inside the repo.
       - ${ATT_GAME_DIR:-./game}:/game
-      # World saves + Wine state (game writes them to AppData inside the prefix).
+      # World saves + Wine state live here, so they survive restarts/rebuilds.
       - wineprefix:/wine
-    # Official Tavern port set (devs: 1757 game, 1761 forest, 1762 auth, 1763 community API).
-    ports:
-      - "1757:1757/udp"   # game traffic (KCP) — MUST be reachable by players
-      - "1757:1757/tcp"   # game handshake
-      - "1761:1761/tcp"   # "forest" / native web server: /cache + Alta console REST
-      - "1762:1762/tcp"   # auth port — keep private
-      - "1763:1763/tcp"   # community API (themoddingtavern.com backend) — see README
-    # Wine occasionally needs a larger ptrace/seccomp surface; start default and
-    # only relax if boot faults (see README "capabilities").
+    # Wine occasionally needs a larger ptrace/seccomp surface; uncomment only if
+    # the server faults during boot (see README "Troubleshooting").
     # cap_add: [SYS_PTRACE]
     # security_opt: [seccomp:unconfined]
+
+  # Community heartbeat — registers this server every 30s so friends can join by
+  # IP with the stock launcher (no handouts). Shares the host network so the POST
+  # comes from your real public IPv4. See register.sh for the full explanation.
+  att-register:
+    image: curlimages/curl:latest
+    container_name: att-register
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./register.sh:/register.sh:ro
+    entrypoint: ["sh", "/register.sh"]
 
 volumes:
   wineprefix:
