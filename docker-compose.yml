@@ -1,0 +1,27 @@
+services:
+  att-server:
+    build: .
+    image: att-server:1.6.2
+    container_name: att-server
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Your clean, patched default "A Township Tale" server folder.
+      # Defaults to ./game inside the repo (populated by install.sh or by you).
+      - ${ATT_GAME_DIR:-./game}:/game
+      # World saves + Wine state (game writes them to AppData inside the prefix).
+      - wineprefix:/wine
+    # Official Tavern port set (devs: 1757 game, 1761 forest, 1762 auth, 1763 community API).
+    ports:
+      - "1757:1757/udp"   # game traffic (KCP) — MUST be reachable by players
+      - "1757:1757/tcp"   # game handshake
+      - "1761:1761/tcp"   # "forest" / native web server: /cache + Alta console REST
+      - "1762:1762/tcp"   # auth port — keep private
+      - "1763:1763/tcp"   # community API (themoddingtavern.com backend) — see README
+    # Wine occasionally needs a larger ptrace/seccomp surface; start default and
+    # only relax if boot faults (see README "capabilities").
+    # cap_add: [SYS_PTRACE]
+    # security_opt: [seccomp:unconfined]
+
+volumes:
+  wineprefix:

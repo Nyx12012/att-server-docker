@@ -1,0 +1,10 @@
+# Never commit secrets or game binaries
+.env
+game/
+*.zip
+*.tar.gz
+*.tgz
+
+# Game/Wine runtime junk if anyone runs locally
+wine/
+*.log
