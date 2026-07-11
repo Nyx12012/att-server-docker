@@ -1,0 +1,3 @@
+# Keep everything LF — this repo runs on Linux under Docker.
+* text=auto eol=lf
+*.sh text eol=lf
