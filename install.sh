@@ -9,7 +9,7 @@
 # then build and start the container.
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/YOUR_GITHUB_USER/att-server-docker.git}"
+REPO_URL="${REPO_URL:-https://github.com/Nyx12012/att-server-docker.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/att-server-docker}"
 
 log(){ printf '\033[1;36m[install]\033[0m %s\n' "$*"; }

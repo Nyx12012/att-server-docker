@@ -18,7 +18,7 @@ patched game files.
 On a fresh Linux VPS with `curl` + `git`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/att-server-docker/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nyx12012/att-server-docker/main/install.sh | bash
 ```
 
 That installs Docker (if missing), clones this repo to `~/att-server-docker`, creates
@@ -34,7 +34,7 @@ exact same one-liner (with your repo URL) and supply their own game files.
 
 ### Or clone-then-run
 ```bash
-git clone https://github.com/YOUR_GITHUB_USER/att-server-docker.git
+git clone https://github.com/Nyx12012/att-server-docker.git
 cd att-server-docker
 ./install.sh /absolute/path/to/patched/game   # optional path arg
 ```
