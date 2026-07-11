@@ -2,7 +2,7 @@
 # One-command installer for the A Township Tale headless server (Docker + Wine).
 #
 # Usage (from a clone):        ./install.sh [/path/to/game]
-# Usage (bootstrap, no clone): curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/att-server-docker/main/install.sh | bash
+# Usage (bootstrap, no clone): curl -fsSL https://raw.githubusercontent.com/Nyx12012/att-server-docker/main/install.sh | bash
 #
 # It will: install Docker if missing, fetch this repo if run standalone, create
 # .env, obtain the game files (via GAME_URL or the ./game folder you provide),
