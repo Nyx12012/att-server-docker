@@ -11,8 +11,9 @@ settings, nothing to run. It works on every server that has voice turned on.
 ## Before you start
 
 You need the game already patched the normal way — i.e. you launch *A Township Tale*
-through **TavernLauncher – Client** and can join the server. If you can already play on
-the server, you're ready.
+through **TavernLauncher – Client** and can join the server. That launcher also installs
+the mod loader (MelonLoader) this voice mod needs, so **if you can already play on the
+server, you're ready.**
 
 You also need a **microphone** (any headset/VR mic). That's it.
 
