@@ -6,7 +6,7 @@ into their game launcher — no files to hand around.
 
 **What you'll need**
 - A **Windows PC** (used once, to prepare the game files).
-- *A Township Tale* installed on that PC (it's a **free** download on Steam).
+- *A Township Tale* installed on that PC (it's a **free** download).
 - A **credit/debit card** for a cheap Linux server (about **$5–7 a month**).
 - About **30–45 minutes** the first time.
 
