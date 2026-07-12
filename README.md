@@ -178,7 +178,12 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
   Dockerfile and `docker compose build --no-cache`.
 - **Wine faults early (ptrace/seccomp):** uncomment `cap_add: [SYS_PTRACE]` and
   `security_opt: [seccomp:unconfined]` in `docker-compose.yml`.
-- **Voice chat missing:** expected — Vivox voice depended on Alta's cloud.
+- **Voice chat:** self-hosted **proximity voice** replaces the dead Vivox — it starts
+  automatically with the stack (the `att-voice` container on `VOICE_PORT`, default
+  1765/udp). Friends install one client mod (`TavernVoice.dll`) and hear each other
+  positionally. If someone can't be heard: confirm `docker logs att-voice` shows
+  `TavernVoice up`, that `1765/udp` is open, and that they dropped the DLL in `Mods\`.
+  See the client mod's own README for install.
 
 ---
 
@@ -189,6 +194,7 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
 | `SETUP-GUIDE.md` | **Start here if you're new** — zero-experience step-by-step. |
 | `install.sh` | One-command installer (Docker + repo + .env + token + game files + firewall + up). |
 | `register.sh` | The join-by-IP registration heartbeat (run by the `att-register` sidecar). |
+| `relay.js` | Proximity voice relay (run by the `att-voice` sidecar) — positional voice, no accounts. |
 | `Dockerfile` | Ubuntu 22.04 + winehq-stable + Xvfb; seeds the Wine prefix. |
 | `entrypoint.sh` | Starts Xvfb, launches the server, streams logs, handles SIGTERM. |
 | `docker-compose.yml` | Server + register sidecar, host networking, volumes, env. |

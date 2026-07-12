@@ -36,7 +36,8 @@ flatten_game(){
 
 configure_firewall(){
   [ "${SKIP_UFW:-0}" = "1" ] && { log "SKIP_UFW=1 — leaving the firewall alone."; return 0; }
-  have ufw || { log "ufw not found — skipping firewall. Make sure your provider allows inbound 1757 (TCP+UDP) and 1761 (TCP), and that 1762/tcp is REFUSED (not dropped)."; return 0; }
+  have ufw || { log "ufw not found — skipping firewall. Make sure your provider allows inbound 1757 (TCP+UDP), 1761 (TCP), 1765/udp (voice), and that 1762/tcp is REFUSED (not dropped)."; return 0; }
+  local VP; VP="$(grep -E '^VOICE_PORT=' .env 2>/dev/null | cut -d= -f2- || true)"; VP="${VP:-1765}"
   local S=""; [ "$(id -u)" -ne 0 ] && S="sudo"
   log "Opening firewall (SSH first, so you can't lock yourself out)…"
   $S ufw allow 22/tcp    >/dev/null 2>&1 || true   # SSH — always allow first
@@ -47,9 +48,10 @@ configure_firewall(){
   # a closed port and gets an instant "refused" (RST). If ufw DROPs it instead,
   # the launcher's auth probe hangs and the join-by-IP fallback can fail.
   $S ufw allow 1762/tcp  >/dev/null 2>&1 || true
+  $S ufw allow "${VP}/udp" >/dev/null 2>&1 || true   # proximity voice relay (UDP-only; can't disturb the 1762 refuse)
   $S ufw --force enable   >/dev/null 2>&1 || true
   $S ufw reload           >/dev/null 2>&1 || true
-  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, 1762/tcp(refuse) open; 1763/1764 stay closed."
+  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, ${VP}/udp(voice), 1762/tcp(refuse) open; 1763/1764 stay closed."
 }
 
 # --- 1. Docker ---------------------------------------------------------------

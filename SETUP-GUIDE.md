@@ -162,7 +162,11 @@ Your friends do **not** need anything from you except your **IP address**. Each 
 
 That's it — they load straight into your world. No files, no passwords.
 
-> Voice chat won't work (it relied on Alta's old servers) — everyone uses Discord instead.
+> **Voice chat works again.** This kit runs a self-hosted **proximity voice** relay that
+> starts automatically with your server — you hear people who are near you in the world,
+> quieter as they walk away. Your friends each do a one-time step: drop a single file
+> (`TavernVoice.dll`) into their game's `Mods\` folder. Full walkthrough in
+> **CLIENT-VOICE-INSTALL.md**. No accounts, no extra server steps for you.
 
 ---
 

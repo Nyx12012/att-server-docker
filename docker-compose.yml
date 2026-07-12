@@ -36,5 +36,21 @@ services:
       - ./register.sh:/register.sh:ro
     entrypoint: ["sh", "/register.sh"]
 
+  # Proximity voice relay — self-hosted replacement for the dead Vivox voice. It
+  # forwards positional Opus voice packets between players who are near each other
+  # in-world. It reads ONLY the packet header (who + where); it never decodes audio,
+  # so it needs no codec and stays tiny (plain Node, zero npm deps). Comes up with
+  # the stack; the client mod auto-connects to VOICE_PORT on the box it just joined,
+  # so one client DLL works on every server running this. See relay.js.
+  att-voice:
+    image: node:20-alpine
+    container_name: att-voice
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./relay.js:/relay.js:ro
+    command: ["node", "/relay.js"]
+
 volumes:
   wineprefix:
