@@ -110,11 +110,13 @@ install the free **PuTTY** program instead and connect to the same IP as `root`.
 
 ## Part 5 — Name your server and start it
 
-1. **Set the name friends will see.** Paste this, changing the name to whatever you want:
+1. **Set the name and description friends will see.** Paste these, changing the text
+   to whatever you want:
    ```
    sed -i 's/^SERVER_NAME=.*/SERVER_NAME=Velaris Township/' ~/att-server-docker/.env
+   sed -i 's/^SERVER_DESCRIPTION=.*/SERVER_DESCRIPTION=Cozy modded co-op/' ~/att-server-docker/.env
    ```
-   (Letters, numbers and spaces are fine. Skip this step to keep the default name.)
+   (Letters, numbers and spaces are fine. Skip these to keep the defaults.)
 
 2. **Run the installer again** to build and launch everything:
    ```
@@ -162,11 +164,10 @@ Your friends do **not** need anything from you except your **IP address**. Each 
 
 That's it — they load straight into your world. No files, no passwords.
 
-> **Voice chat works again.** This kit runs a self-hosted **proximity voice** relay that
-> starts automatically with your server — you hear people who are near you in the world,
-> quieter as they walk away. Your friends each do a one-time step: drop a single file
-> (`TavernVoice.dll`) into their game's `Mods\` folder. Full walkthrough in
-> **CLIENT-VOICE-INSTALL.md**. No accounts, no extra server steps for you.
+> **Voice chat works out of the box.** v1.8.0 includes CircuitLord's official voice
+> chat as a mod. When your friends patch their game with **TavernLauncher – Client**,
+> they just install the voice mod (it's the first *optional* mod in the list). It runs
+> over the normal game connection — nothing for you to set up or open on the server.
 
 ---
 
@@ -180,7 +181,9 @@ Run these after connecting (Part 3) and `cd ~/att-server-docker`:
 | Stop the server | `docker compose down` |
 | Start it again | `docker compose up -d` |
 | Restart it | `docker compose restart` |
-| Change the server name | edit `.env` (Part 5, step 1), then `docker compose up -d` |
+| Change the name/description | edit `.env` (Part 5, step 1), then `docker compose up -d` |
+| Check you're on the server list | `curl "http://themoddingtavern.com:1763/servers/lookup?address=$(curl -4 -s ifconfig.me)"` (expect `found:true`) |
+| Fix listing (if `found:false`) | `docker compose --profile fallback up -d` (IPv4 heartbeat) |
 | Update the kit | `cd ~/att-server-docker && git pull && ./install.sh` |
 
 ---
@@ -192,8 +195,10 @@ Run these after connecting (Part 3) and `cd ~/att-server-docker`:
 - **They get in but the ground/terrain is broken** → port **1761/TCP** isn't open. On the
   server: `ufw allow 1761/tcp && ufw reload`, and check Part 6.
 - **The launcher just spins on "authenticating" when a friend joins** → the listing isn't
-  live. On the server: `docker logs att-register` (should be quiet = working). Make sure the
-  server can reach the internet. Give it a minute after starting.
+  live. Check it: `curl "http://themoddingtavern.com:1763/servers/lookup?address=$(curl -4 -s ifconfig.me)"`
+  should say `found:true`. If it says `found:false`, turn on the IPv4 fallback:
+  `docker compose --profile fallback up -d`. Give it a minute and make sure the server can
+  reach the internet.
 - **"No game files yet" when you run the installer** → your `game.zip` isn't in the right
   place. It must be at `~/att-server-docker/game.zip`. Re-do Part 4.
 - **Still stuck?** Copy the last ~20 lines of `docker compose logs -f` and send them to

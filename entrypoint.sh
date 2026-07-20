@@ -21,6 +21,34 @@ if [ ! -f "$GAME_DIR/version.dll" ]; then
   echo "[entrypoint] WARNING: $GAME_DIR/version.dll missing — MelonLoader won't inject. Is this folder actually patched?" >&2
 fi
 
+# --- server-config.yaml (name / description / native community listing) ------
+# TavernLib reads <game>/server-config.yaml at boot. Writing it from .env is what
+# gives friends a NAME + DESCRIPTION in the community list and lets v1.8.0
+# advertise the server itself (native listing) — no sidecar needed. We regenerate
+# it every boot so .env stays the single source of truth. Set WRITE_SERVER_CONFIG=0
+# to leave a hand-tuned file alone, or if native registration misbehaves and you'd
+# rather rely on the curl -4 heartbeat fallback (see UPGRADE-1.8.0.md).
+if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
+  cfg="$GAME_DIR/server-config.yaml"
+  yq_name=$(printf '%s' "${SERVER_NAME:-My Township Server}" | sed 's/"/\\"/g')
+  yq_desc=$(printf '%s' "${SERVER_DESCRIPTION:-}" | sed 's/"/\\"/g')
+  {
+    echo "name: \"$yq_name\""
+    echo "description: \"$yq_desc\""
+    echo "max-players: ${MAX_PLAYERS:-8}"
+    echo "pc-world: false"
+    # listing-token present => TavernLib advertises to the community list.
+    # Omit it (leave LISTING_TOKEN blank in .env) to run unlisted / direct-IP only.
+    if [ -n "${LISTING_TOKEN:-}" ]; then echo "listing-token: \"$LISTING_TOKEN\""; fi
+    echo "ports:"
+    echo "  game: ${SERVER_PORT:-1757}"
+    echo "  forest: 1761"
+    echo "  rcon: 1762"
+  } > "$cfg"
+  if [ -n "${LISTING_TOKEN:-}" ]; then adv="listed"; else adv="unlisted"; fi
+  echo "[entrypoint] wrote server-config.yaml (name='$yq_name', $adv)"
+fi
+
 # --- virtual display ---------------------------------------------------------
 mkdir -p "$XDG_RUNTIME_DIR"
 Xvfb :0 -screen 0 1024x768x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &

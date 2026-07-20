@@ -2,7 +2,7 @@ services:
   # The game server itself (headless ATT under Wine).
   att-server:
     build: .
-    image: att-server:1.6.2
+    image: att-server:1.8.0
     container_name: att-server
     restart: unless-stopped
     env_file: .env
@@ -23,34 +23,32 @@ services:
     # cap_add: [SYS_PTRACE]
     # security_opt: [seccomp:unconfined]
 
-  # Community heartbeat — registers this server every 30s so friends can join by
-  # IP with the stock launcher (no handouts). Shares the host network so the POST
-  # comes from your real public IPv4. See register.sh for the full explanation.
+  # OPTIONAL community-listing heartbeat — the FALLBACK for join-by-IP.
+  #
+  # v1.8.0's TavernLib can advertise the server itself (native listing), and the
+  # entrypoint writes a server-config.yaml from your .env so it will. BUT that
+  # native registration goes out over whatever address the box prefers, and most
+  # VPSes default to IPv6 outbound — so it can list your IPv6 while friends type
+  # your IPv4 and never match. This sidecar re-POSTs the listing forced over IPv4
+  # (curl -4), which is the proven fix.
+  #
+  # It does NOT start by default. Test native first; if the lookup endpoint
+  # doesn't return your IPv4 (see UPGRADE-1.8.0.md → "Test the listing"), enable
+  # this with:   docker compose --profile fallback up -d
   att-register:
     image: curlimages/curl:latest
     container_name: att-register
     restart: unless-stopped
     network_mode: host
     env_file: .env
+    profiles: ["fallback"]
     volumes:
       - ./register.sh:/register.sh:ro
     entrypoint: ["sh", "/register.sh"]
 
-  # Proximity voice relay — self-hosted replacement for the dead Vivox voice. It
-  # forwards positional Opus voice packets between players who are near each other
-  # in-world. It reads ONLY the packet header (who + where); it never decodes audio,
-  # so it needs no codec and stays tiny (plain Node, zero npm deps). Comes up with
-  # the stack; the client mod auto-connects to VOICE_PORT on the box it just joined,
-  # so one client DLL works on every server running this. See relay.js.
-  att-voice:
-    image: node:20-alpine
-    container_name: att-voice
-    restart: unless-stopped
-    network_mode: host
-    env_file: .env
-    volumes:
-      - ./relay.js:/relay.js:ro
-    command: ["node", "/relay.js"]
+# Voice is no longer a service here. v1.8.0 integrates CircuitLord's official
+# voice chat (CircuitsVoiceChat), which ships in your patched game folder — so
+# the old self-hosted att-voice relay is gone. Nothing to run server-side.
 
 volumes:
   wineprefix:

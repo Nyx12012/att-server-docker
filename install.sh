@@ -36,8 +36,7 @@ flatten_game(){
 
 configure_firewall(){
   [ "${SKIP_UFW:-0}" = "1" ] && { log "SKIP_UFW=1 — leaving the firewall alone."; return 0; }
-  have ufw || { log "ufw not found — skipping firewall. Make sure your provider allows inbound 1757 (TCP+UDP), 1761 (TCP), 1765/udp (voice), and that 1762/tcp is REFUSED (not dropped)."; return 0; }
-  local VP; VP="$(grep -E '^VOICE_PORT=' .env 2>/dev/null | cut -d= -f2- || true)"; VP="${VP:-1765}"
+  have ufw || { log "ufw not found — skipping firewall. Make sure your provider allows inbound 1757 (TCP+UDP), 1761 (TCP), and that 1762/tcp is REFUSED (not dropped)."; return 0; }
   local S=""; [ "$(id -u)" -ne 0 ] && S="sudo"
   log "Opening firewall (SSH first, so you can't lock yourself out)…"
   $S ufw allow 22/tcp    >/dev/null 2>&1 || true   # SSH — always allow first
@@ -48,10 +47,10 @@ configure_firewall(){
   # a closed port and gets an instant "refused" (RST). If ufw DROPs it instead,
   # the launcher's auth probe hangs and the join-by-IP fallback can fail.
   $S ufw allow 1762/tcp  >/dev/null 2>&1 || true
-  $S ufw allow "${VP}/udp" >/dev/null 2>&1 || true   # proximity voice relay (UDP-only; can't disturb the 1762 refuse)
   $S ufw --force enable   >/dev/null 2>&1 || true
   $S ufw reload           >/dev/null 2>&1 || true
-  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, ${VP}/udp(voice), 1762/tcp(refuse) open; 1763/1764 stay closed."
+  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, 1762/tcp(refuse) open; 1763/1764 stay closed."
+  # v1.8.0 voice (CircuitsVoiceChat) rides the game channel — no extra port to open.
 }
 
 # --- 1. Docker ---------------------------------------------------------------
@@ -144,7 +143,7 @@ configure_firewall
 # --- 6. Build + run ----------------------------------------------------------
 log "Building image (first run pulls Wine — a few minutes)…"
 docker compose build
-log "Starting server + registration heartbeat…"
+log "Starting server (native community listing from server-config.yaml)…"
 docker compose up -d
 
 G=$'\033[1;32m'; N=$'\033[0m'
@@ -165,5 +164,11 @@ ${PUBIP} into the launcher, and hitting Join — no files to hand out.
 See SETUP-GUIDE.md → "How your friends join".
 
 In 'docker compose logs -f' look for: "Melon Assembly loaded: 'Plugins/TavernLib.dll'"
-and the world loading, plus the att-register container listing your server every 30s.
+and the world loading.
+
+Check your community listing points at THIS box's IPv4:
+  curl "http://${COMMUNITY_HOST:-themoddingtavern.com}:1763/servers/lookup?address=${PUBIP}"
+Expect {"found":true,...}. If it's not found (many VPSes advertise over IPv6),
+turn on the IPv4 heartbeat fallback:  docker compose --profile fallback up -d
+See UPGRADE-1.8.0.md for the full listing walkthrough.
 EOF
