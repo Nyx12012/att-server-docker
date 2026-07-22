@@ -1,5 +1,5 @@
 # A Township Tale — headless server under Wine (Linux/VPS)
-# For Modding Tavern TavernLauncher v1.8.0 game folders. Image carries Wine +
+# For Modding Tavern TavernLauncher v1.8.1 game folders. Image carries Wine +
 # Xvfb ONLY. Your patched game folder is mounted in at runtime (see
 # docker-compose.yml / README.md) — no game binaries are baked into this image.
 
@@ -48,9 +48,10 @@ RUN chmod +x /entrypoint.sh
 
 # Informational only: docker-compose runs this with network_mode: host, so the
 # container binds these directly on the host and EXPOSE/publishing is not used.
-# Official Tavern port set: 1757 game (KCP/UDP + TCP; v1.8.0 voice also rides this
-# channel), 1761 "forest"/native web (/cache + Alta console REST), 1762 auth,
-# 1763 community API (themoddingtavern.com).
-EXPOSE 1757/udp 1757/tcp 1761/tcp
+# Official Tavern port set: 1757 game (KCP/UDP + TCP; voice rides this channel),
+# 1761 "forest"/native web (/cache + Alta console REST), 1762 TavernLib auth
+# service (LIVE since v1.8.1 — the server binds it and the launcher requires it
+# to join), 1763 community API (themoddingtavern.com, outbound).
+EXPOSE 1757/udp 1757/tcp 1761/tcp 1762/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]
