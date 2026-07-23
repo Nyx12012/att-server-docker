@@ -76,11 +76,21 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
   [ -z "$listed" ] && { [ -n "${LISTING_TOKEN:-}" ] && listed=1 || listed=0; }
   case "$listed" in 1|true|yes) listed=true ;; *) listed=false ;; esac
 
-  # The listing payload now carries the address to advertise — this is what fixes
-  # the "VPS registers over IPv6, friends type the IPv4" mismatch. Auto-detect if
-  # PUBLIC_HOSTNAME isn't set.
+  # The listing's hostname is the address friends' launchers use from the community
+  # browser — it MUST be a bare IP/host, never a web page. Auto-detect our public
+  # IPv4 from IP-only endpoints (ifconfig.me's ROOT serves wget a full HTML page —
+  # that once leaked into the listing), take the first line, and reject anything
+  # that isn't host-shaped so we advertise a clean value or nothing at all.
   pub="${PUBLIC_HOSTNAME:-}"
-  [ -z "$pub" ] && pub="$(wget -4 -qO- --timeout=5 https://ifconfig.me 2>/dev/null || true)"
+  if [ -z "$pub" ]; then
+    for _u in https://api.ipify.org https://ifconfig.me/ip https://icanhazip.com https://checkip.amazonaws.com; do
+      pub="$(curl -4 -fsS --max-time 5 "$_u" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+      case "$pub" in
+        "" | *[!A-Za-z0-9.:-]* ) pub="" ;;   # empty or non-host chars (HTML/spaces) -> reject
+        * ) break ;;                          # a bare IP/hostname -> keep it
+      esac
+    done
+  fi
 
   {
     echo "{"
