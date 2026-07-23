@@ -22,19 +22,19 @@ There are 6 parts. Do them in order.
 ## Part 1 — Make your server's game files (on your Windows PC)
 
 The kit does **not** include the game (that would be piracy — the game is free, but its
-files aren't ours to hand out). So you make your own patched copy once.
+files aren't ours to hand out). So you zip up your own copy once. **No patching needed**
+— the server patches itself on every start (it applies Modding Tavern's released
+TavernLauncher patch automatically).
 
 > **Full step-by-step with pictures-worth-of-detail is in [MAKE-GAME-ZIP.md](MAKE-GAME-ZIP.md).**
 > The short version:
 
 1. Install **A Township Tale** from Steam if you haven't (it's free).
-2. Open the **Modding Tavern TavernLauncher** (the same tool used to play modded ATT),
-   choose **Server**, and click **Patch**. (Apply your mods too, if any.)
-3. Find the patched folder (usually your Steam `…\common\A Township Tale` folder) and
-   **check it contains all of these** — this is how you know it worked:
-   `A Township Tale.exe`, **`version.dll`**, `A Township Tale_Data\`, `MelonLoader\`, and
-   **`Plugins\TavernLib.dll`**. If `version.dll` or `TavernLib.dll` are missing, run **Patch** again.
-4. **Zip that folder.** Right-click it → **Send to → Compressed (zipped) folder**, and
+2. Find the game folder (usually your Steam `…\common\A Township Tale` folder — or a
+   clean backup of it from before you patched your client, which is even better) and
+   **check it contains both of these**:
+   `A Township Tale.exe` and `A Township Tale_Data\`. That's all the server needs.
+3. **Zip that folder.** Right-click it → **Send to → Compressed (zipped) folder**, and
    rename the result to exactly **`game.zip`**. (A few GB is normal.)
 
 > Keep `game.zip` private (don't post it publicly). It's your licensed copy.
@@ -110,13 +110,12 @@ install the free **PuTTY** program instead and connect to the same IP as `root`.
 
 ## Part 5 — Name your server and start it
 
-1. **Set the name and description friends will see.** Paste these, changing the text
-   to whatever you want:
+1. **Set the name friends will see.** Paste this, changing the text to whatever
+   you want:
    ```
    sed -i 's/^SERVER_NAME=.*/SERVER_NAME=Velaris Township/' ~/att-server-docker/.env
-   sed -i 's/^SERVER_DESCRIPTION=.*/SERVER_DESCRIPTION=Cozy modded co-op/' ~/att-server-docker/.env
    ```
-   (Letters, numbers and spaces are fine. Skip these to keep the defaults.)
+   (Letters, numbers and spaces are fine. Skip this to keep the default.)
 
 2. **Run the installer again** to build and launch everything:
    ```
@@ -148,6 +147,7 @@ panel**. If your friends can't connect, log into your provider's website, find
 
 - **1757** — both **TCP and UDP**
 - **1761** — **TCP**
+- **1762** — **TCP** (your server now answers the launcher's login here — new in v1.8.1)
 
 Leave everything else as-is. (Contabo and Hetzner usually need nothing here.)
 
@@ -158,13 +158,17 @@ Leave everything else as-is. (Contabo and Hetzner usually need nothing here.)
 Your friends do **not** need anything from you except your **IP address**. Each friend:
 
 1. Owns *A Township Tale* (free) and has patched it with **TavernLauncher – Client** (the
-   normal way people play modded ATT).
+   normal way people play modded ATT). **Their launcher must be as new as your server's**
+   — since v1.8.1, a new launcher refuses old servers and vice-versa. When an update
+   lands, your server re-patches itself (`git pull` + restart, see the README) and they
+   re-patch their game with the new launcher.
 2. Opens the launcher, **types your server's IP** (e.g. `144.126.133.142`), and clicks
-   **Join**.
+   **Join**. The first time, the launcher registers their username with your server —
+   that's their account from then on (tell them not to lose it by reinstalling blindly).
 
-That's it — they load straight into your world. No files, no passwords.
+That's it — they load straight into your world. No files to hand out.
 
-> **Voice chat works out of the box.** v1.8.0 includes CircuitLord's official voice
+> **Voice chat works out of the box.** v1.8.x includes CircuitLord's official voice
 > chat as a mod. When your friends patch their game with **TavernLauncher – Client**,
 > they just install the voice mod (it's the first *optional* mod in the list). It runs
 > over the normal game connection — nothing for you to set up or open on the server.
@@ -181,7 +185,7 @@ Run these after connecting (Part 3) and `cd ~/att-server-docker`:
 | Stop the server | `docker compose down` |
 | Start it again | `docker compose up -d` |
 | Restart it | `docker compose restart` |
-| Change the name/description | edit `.env` (Part 5, step 1), then `docker compose up -d` |
+| Change the name | edit `.env` (Part 5, step 1), then `docker compose up -d` |
 | Check you're on the server list | `curl "http://themoddingtavern.com:1763/servers/lookup?address=$(curl -4 -s ifconfig.me)"` (expect `found:true`) |
 | Fix listing (if `found:false`) | `docker compose --profile fallback up -d` (IPv4 heartbeat) |
 | Update the kit | `cd ~/att-server-docker && git pull && ./install.sh` |
@@ -194,11 +198,12 @@ Run these after connecting (Part 3) and `cd ~/att-server-docker`:
   server is running: `docker compose ps` should show `att-server` **Up**.
 - **They get in but the ground/terrain is broken** → port **1761/TCP** isn't open. On the
   server: `ufw allow 1761/tcp && ufw reload`, and check Part 6.
-- **The launcher just spins on "authenticating" when a friend joins** → the listing isn't
-  live. Check it: `curl "http://themoddingtavern.com:1763/servers/lookup?address=$(curl -4 -s ifconfig.me)"`
-  should say `found:true`. If it says `found:false`, turn on the IPv4 fallback:
-  `docker compose --profile fallback up -d`. Give it a minute and make sure the server can
-  reach the internet.
+- **The launcher just spins or errors on "authenticating" when a friend joins** → their
+  launcher can't reach your server's login port. Make sure **1762/TCP** is open (Part 6,
+  and on the server `ufw allow 1762/tcp && ufw reload`), and that BOTH of you are on the
+  same launcher version — a v1.8.1 launcher can't join a server on an older patch. The
+  server keeps itself on the kit's pinned version automatically; to update after a new
+  release: `cd ~/att-server-docker && docker compose down && git pull && docker compose build && docker compose up -d`.
 - **"No game files yet" when you run the installer** → your `game.zip` isn't in the right
   place. It must be at `~/att-server-docker/game.zip`. Re-do Part 4.
 - **Still stuck?** Copy the last ~20 lines of `docker compose logs -f` and send them to

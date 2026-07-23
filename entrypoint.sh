@@ -7,6 +7,15 @@ GAME_DIR="${GAME_DIR:-/game}"
 GAME_EXE="${GAME_EXE:-A Township Tale.exe}"
 INSTANCE_ID="${INSTANCE_ID:--1}"
 SERVER_PORT="${SERVER_PORT:-1757}"
+PATCHER="${PATCHER:-/patcher.sh}"
+export GAME_DIR
+
+# One-shot re-patch (server stopped): docker compose run --rm att-server update
+if [ "${1:-}" = "update" ]; then
+  "$PATCHER" force
+  echo "[entrypoint] update complete — start normally with: docker compose up -d"
+  exit 0
+fi
 
 : "${ATT_ACCESS_TOKEN:?set ATT_ACCESS_TOKEN in .env}"
 : "${ATT_REFRESH_TOKEN:?set ATT_REFRESH_TOKEN in .env}"
@@ -14,39 +23,90 @@ SERVER_PORT="${SERVER_PORT:-1757}"
 
 echo "[entrypoint] game dir: $GAME_DIR  instance: $INSTANCE_ID  port: $SERVER_PORT"
 if [ ! -f "$GAME_DIR/$GAME_EXE" ]; then
-  echo "[entrypoint] ERROR: '$GAME_DIR/$GAME_EXE' not found. Did you mount your patched game folder to $GAME_DIR? See README." >&2
+  echo "[entrypoint] ERROR: '$GAME_DIR/$GAME_EXE' not found. Did you mount your game folder to $GAME_DIR? See README." >&2
   exit 1
+fi
+
+# Keep the game folder on the pinned TavernLauncher release (no-op when already
+# current). This is what makes `git pull && docker compose up -d --build` a full
+# upgrade. AUTO_PATCH=0 boots with whatever is in the folder (hand-patched setups).
+if [ "${AUTO_PATCH:-1}" = "1" ]; then
+  "$PATCHER"
+else
+  echo "[entrypoint] AUTO_PATCH=0 — skipping patch check"
 fi
 if [ ! -f "$GAME_DIR/version.dll" ]; then
   echo "[entrypoint] WARNING: $GAME_DIR/version.dll missing — MelonLoader won't inject. Is this folder actually patched?" >&2
 fi
 
-# --- server-config.yaml (name / description / native community listing) ------
-# TavernLib reads <game>/server-config.yaml at boot. Writing it from .env is what
-# gives friends a NAME + DESCRIPTION in the community list and lets v1.8.0
-# advertise the server itself (native listing) — no sidecar needed. We regenerate
-# it every boot so .env stays the single source of truth. Set WRITE_SERVER_CONFIG=0
-# to leave a hand-tuned file alone, or if native registration misbehaves and you'd
-# rather rely on the curl -4 heartbeat fallback (see UPGRADE-1.8.0.md).
+# --- server_settings.json / tavern_server.json (v1.8.1 / TavernLib v1.3) ------
+# v1.8.1 dropped server-config.yaml entirely (YamlDotNet removed). TavernLib now
+# reads JSON from the Wine user's AppData:
+#   …/TheModdingTavern/server_settings.json  name, listing, whitelist, password
+#   …/TheModdingTavern/tavern_server.json    server_port
+# The same folder also holds users.json — the accounts friends register through
+# the NEW auth service the server runs on TCP 1762. It all sits inside the
+# wineprefix volume, so accounts and settings survive restarts/rebuilds.
+# We regenerate the managed fields every boot so .env stays the single source of
+# truth; the community_listing_token and password_hash already in the file are
+# preserved (TavernLib auto-generates a token if it's blank). Set
+# WRITE_SERVER_CONFIG=0 to leave hand-tuned files alone.
 if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
-  cfg="$GAME_DIR/server-config.yaml"
-  yq_name=$(printf '%s' "${SERVER_NAME:-My Township Server}" | sed 's/"/\\"/g')
-  yq_desc=$(printf '%s' "${SERVER_DESCRIPTION:-}" | sed 's/"/\\"/g')
+  tav_dir="${TAVERN_DIR:-}"
+  if [ -z "$tav_dir" ]; then
+    for u in /wine/drive_c/users/*/AppData/Roaming; do
+      [ -d "$u" ] && tav_dir="$u/TheModdingTavern" && break
+    done
+  fi
+  tav_dir="${tav_dir:-/wine/drive_c/users/root/AppData/Roaming/TheModdingTavern}"
+  mkdir -p "$tav_dir"
+  cfg="$tav_dir/server_settings.json"
+
+  jesc(){ printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+  # `|| true` matters: set -o pipefail would otherwise turn "field not found"
+  # (grep status 1) into a fatal boot error.
+  jget(){ grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$1" 2>/dev/null | head -1 | sed 's/.*:[[:space:]]*"//; s/"$//' || true; }
+
+  # Keep what TavernLib (or the owner) already stored unless .env overrides it.
+  tok="${LISTING_TOKEN:-}";        [ -z "$tok" ] && [ -f "$cfg" ] && tok="$(jget "$cfg" community_listing_token)"
+  pwh="${SERVER_PASSWORD_HASH:-}"; [ -z "$pwh" ] && [ -f "$cfg" ] && pwh="$(jget "$cfg" password_hash)"
+
+  # Listed unless told otherwise. (Old kit semantics: token present = listed.)
+  listed="${COMMUNITY_LISTED:-}"
+  [ -z "$listed" ] && { [ -n "${LISTING_TOKEN:-}" ] && listed=1 || listed=0; }
+  case "$listed" in 1|true|yes) listed=true ;; *) listed=false ;; esac
+
+  # The listing payload now carries the address to advertise — this is what fixes
+  # the "VPS registers over IPv6, friends type the IPv4" mismatch. Auto-detect if
+  # PUBLIC_HOSTNAME isn't set.
+  pub="${PUBLIC_HOSTNAME:-}"
+  [ -z "$pub" ] && pub="$(wget -4 -qO- --timeout=5 https://ifconfig.me 2>/dev/null || true)"
+
   {
-    echo "name: \"$yq_name\""
-    echo "description: \"$yq_desc\""
-    echo "max-players: ${MAX_PLAYERS:-8}"
-    echo "pc-world: false"
-    # listing-token present => TavernLib advertises to the community list.
-    # Omit it (leave LISTING_TOKEN blank in .env) to run unlisted / direct-IP only.
-    if [ -n "${LISTING_TOKEN:-}" ]; then echo "listing-token: \"$LISTING_TOKEN\""; fi
-    echo "ports:"
-    echo "  game: ${SERVER_PORT:-1757}"
-    echo "  forest: 1761"
-    echo "  rcon: 1762"
+    echo "{"
+    echo "  \"name\": \"$(jesc "${SERVER_NAME:-My Township Server}")\","
+    echo "  \"password_hash\": \"$(jesc "$pwh")\","
+    echo "  \"whitelist_enabled\": $( [ "${WHITELIST_ENABLED:-0}" = "1" ] && echo true || echo false ),"
+    echo "  \"enforce_ip_limit\": $( [ "${ENFORCE_IP_LIMIT:-0}" = "1" ] && echo true || echo false ),"
+    echo "  \"community_listed\": $listed,"
+    echo "  \"max_players\": ${MAX_PLAYERS:-8},"
+    echo "  \"community_listing_token\": \"$(jesc "$tok")\","
+    echo "  \"public_hostname\": \"$(jesc "$pub")\""
+    echo "}"
   } > "$cfg"
-  if [ -n "${LISTING_TOKEN:-}" ]; then adv="listed"; else adv="unlisted"; fi
-  echo "[entrypoint] wrote server-config.yaml (name='$yq_name', $adv)"
+  printf '{\n  "server_port": %s\n}\n' "${SERVER_PORT:-1757}" > "$tav_dir/tavern_server.json"
+
+  # The old yaml is dead config on v1.8.1 — remove it so nobody edits it expecting effect.
+  rm -f "$GAME_DIR/server-config.yaml"
+
+  [ "$listed" = "true" ] && adv="listed" || adv="unlisted"
+  echo "[entrypoint] wrote server_settings.json (name='${SERVER_NAME:-My Township Server}', $adv, public_hostname='${pub:-unset}') + tavern_server.json (port ${SERVER_PORT:-1757})"
+fi
+
+# Debug/test knob: write the configs and stop before touching Xvfb/Wine.
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+  echo "[entrypoint] CONFIG_ONLY=1 — configs written, not launching the server."
+  exit 0
 fi
 
 # --- virtual display ---------------------------------------------------------

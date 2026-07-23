@@ -2,7 +2,7 @@ services:
   # The game server itself (headless ATT under Wine).
   att-server:
     build: .
-    image: att-server:1.8.0
+    image: att-server:1.8.1
     container_name: att-server
     restart: unless-stopped
     env_file: .env
@@ -23,17 +23,17 @@ services:
     # cap_add: [SYS_PTRACE]
     # security_opt: [seccomp:unconfined]
 
-  # OPTIONAL community-listing heartbeat — the FALLBACK for join-by-IP.
+  # OPTIONAL community-listing heartbeat — the FALLBACK, rarely needed on v1.8.1.
   #
-  # v1.8.0's TavernLib can advertise the server itself (native listing), and the
-  # entrypoint writes a server-config.yaml from your .env so it will. BUT that
-  # native registration goes out over whatever address the box prefers, and most
-  # VPSes default to IPv6 outbound — so it can list your IPv6 while friends type
-  # your IPv4 and never match. This sidecar re-POSTs the listing forced over IPv4
-  # (curl -4), which is the proven fix.
+  # TavernLib v1.3 advertises the server itself (native listing, every ~3s) and
+  # its payload now carries a `hostname` field — the entrypoint fills it with your
+  # IPv4 (PUBLIC_HOSTNAME in .env, auto-detected if blank), which is the clean fix
+  # for the old "VPS registers over IPv6, friends type the IPv4" mismatch. This
+  # sidecar re-POSTs the listing forced over IPv4 (curl -4) as a belt-and-braces
+  # fallback if the native listing still doesn't resolve to your IPv4.
   #
   # It does NOT start by default. Test native first; if the lookup endpoint
-  # doesn't return your IPv4 (see UPGRADE-1.8.0.md → "Test the listing"), enable
+  # doesn't return your IPv4 (see UPGRADE-1.8.1.md → "Test the listing"), enable
   # this with:   docker compose --profile fallback up -d
   att-register:
     image: curlimages/curl:latest
@@ -46,7 +46,7 @@ services:
       - ./register.sh:/register.sh:ro
     entrypoint: ["sh", "/register.sh"]
 
-# Voice is no longer a service here. v1.8.0 integrates CircuitLord's official
+# Voice is no longer a service here. v1.8.x integrates CircuitLord's official
 # voice chat (CircuitsVoiceChat), which ships in your patched game folder — so
 # the old self-hosted att-voice relay is gone. Nothing to run server-side.
 

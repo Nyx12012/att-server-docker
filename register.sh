@@ -1,16 +1,12 @@
 #!/bin/sh
-# Community heartbeat — this is what lets friends join by typing your IP into the
-# stock TavernLauncher, with no per-friend files.
+# Community heartbeat — FALLBACK only on v1.8.1 (run via --profile fallback).
 #
-# Every 30s it POSTs your server to the Modding Tavern community backend as a
-# "headless" server. When a friend types your IP, their launcher fails the auth
-# pre-flight on :1762 (a headless server never answers there), then asks the
-# backend "is <IP> a known headless server?" — this heartbeat is what makes the
-# answer yes, so the launcher joins directly (no auth handshake).
-#
-# Runs in a tiny container that shares the host network, so the POST's source IP
-# is your real public IPv4 (via curl -4). The backend keys the listing on that
-# source IP + the port below.
+# TavernLib v1.3 registers the server itself every ~3s, and its payload carries a
+# `hostname` field the entrypoint fills with your IPv4 — so the old "VPS registers
+# over IPv6, friends type the IPv4" mismatch should be gone. Keep this around for
+# the case where the native listing still doesn't resolve to your IPv4: it
+# re-POSTs the listing forced over IPv4 (curl -4) with the same payload shape
+# TavernLib v1.3 sends.
 set -eu
 
 : "${SERVER_NAME:?set SERVER_NAME in .env}"
@@ -20,16 +16,20 @@ HOST="${COMMUNITY_HOST:-themoddingtavern.com}"
 PORT="${SERVER_PORT:-1757}"
 LIMIT="${MAX_PLAYERS:-8}"
 
-echo "[register] listing '$SERVER_NAME' on port $PORT -> $HOST:1763 (every 30s)"
+# -4 is REQUIRED throughout: many VPSes default to IPv6 outbound; without it the
+# backend records the wrong (IPv6) address and friends typing the IPv4 won't match.
+PUB="${PUBLIC_HOSTNAME:-$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)}"
+
+echo "[register] listing '$SERVER_NAME' ($PUB:$PORT) -> $HOST:1763 (every 15s)"
 
 while true; do
-  # -4 is REQUIRED: many VPSes default to IPv6 outbound; without it the backend
-  # records the wrong (IPv6) address and friends typing the IPv4 won't match.
   code=$(curl -4 -s -o /dev/null -w '%{http_code}' \
     -X POST "http://$HOST:1763/servers" \
     -H 'Content-Type: application/json' \
-    -d "{\"listing_token\":\"$LISTING_TOKEN\",\"name\":\"$SERVER_NAME\",\"port\":$PORT,\"player_limit\":$LIMIT,\"has_password\":false,\"kind\":\"headless\"}" \
+    -d "{\"listing_token\":\"$LISTING_TOKEN\",\"name\":\"$SERVER_NAME\",\"port\":$PORT,\"player_limit\":$LIMIT,\"has_password\":false,\"player_count\":0,\"community_listed\":true,\"hostname\":\"$PUB\"}" \
     2>/dev/null || echo "000")
-  [ "$code" = "200" ] || echo "[register] POST returned $code — will retry in 30s"
-  sleep 30
+  [ "$code" = "200" ] || echo "[register] POST returned $code — will retry in 15s"
+  # v1.3 servers heartbeat every ~3s; the backend TTL may have shrunk to match,
+  # so we post more often than the old 30s.
+  sleep 15
 done
