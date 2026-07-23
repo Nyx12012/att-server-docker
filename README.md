@@ -3,7 +3,9 @@
 Run a **Modding Tavern** *A Township Tale* server headless on any Linux VPS, in
 Docker, under Wine. Friends join by **typing your IP** into the stock
 TavernLauncher — no per-friend files to hand out. One command to install; **you
-supply your own patched game files** (this kit ships no game binaries).
+supply your own game files** (this kit ships no game binaries — and since v1.8.1
+a clean base install is enough: the container applies the Tavern patch itself on
+boot, so kit + game upgrades are just `git pull` and a restart).
 
 > **Never done this before?** Follow **[SETUP-GUIDE.md](SETUP-GUIDE.md)** — a
 > step-by-step, zero-experience walkthrough (buy a VPS → run one command → play).
@@ -16,7 +18,8 @@ supply your own patched game files** (this kit ships no game binaries).
 > command sequence. (`UPGRADE-1.8.0.md` covers the previous hop.)
 
 > **What this is:** deployment tooling only. It contains **no game binaries** — you
-> point it at your own patched game folder. See [NOTICE.md](NOTICE.md).
+> point it at your own copy of the game; the container downloads only Modding
+> Tavern's own released patch files. See [NOTICE.md](NOTICE.md).
 
 ---
 
@@ -32,7 +35,8 @@ That installs Docker (if missing), clones this repo to `~/att-server-docker`, cr
 `.env` with a random per-server listing token, then stops and asks for your game
 files. Add them one of two ways:
 
-- **Upload a zip:** put a `game.zip` of your patched folder at `~/att-server-docker/game.zip`; **or**
+- **Upload a zip:** put a `game.zip` of your game folder (a clean base install is
+  enough — the container patches it at boot) at `~/att-server-docker/game.zip`; **or**
 - **Host it yourself:** put a `.zip`/`.tar.gz` of the folder on a private URL **you**
   control (e.g. your own Dropbox direct link) and set `GAME_URL=` in `.env`.
 
@@ -50,20 +54,26 @@ cd att-server-docker
 
 ---
 
-## Getting the patched game files (you make these; we ship none)
+## Getting the game files (you supply these; we ship none)
 
-The game is Windows software patched by the Modding Tavern **TavernLauncher**. To
-produce the folder this server needs, on **your own Windows PC**:
+You need your own copy of the game — `A Township Tale.exe` plus the
+`A Township Tale_Data/` folder. A **clean, unpatched backup** of your install is
+all it takes: on every start the container checks the folder and applies the
+pinned TavernLauncher release itself (MelonLoader, `Plugins/TavernLib.dll`, the
+core `Root.Township.dll` patch, and the CircuitsVoiceChat voice mod), exactly
+what `TavernLauncher – Server`'s **Patch** + **Mods** buttons do on Windows. It
+downloads only Modding Tavern's own released files, skips anything already
+current, and never touches your other `Mods/` or `UserData/`.
 
-1. Install *A Township Tale* (free on Steam), run **TavernLauncher – Server**, hit
-   **Patch** (then **Mods** if you use any). That yields a folder with
-   `A Township Tale.exe`, `version.dll` (MelonLoader), `A Township Tale_Data/`,
-   `MelonLoader/`, `Plugins/TavernLib.dll`, `UserLibs/`, `Mods/`, `UserData/`.
-2. Zip that folder to `game.zip` and upload it to the VPS (or host it and set `GAME_URL`).
+A folder you already patched with the launcher works too — the patcher just
+tops up whatever is missing or outdated (or set `AUTO_PATCH=0` to leave it
+entirely alone).
 
-This is **your** licensed copy — keep it private. Do **not** redistribute it: ATT
-being free-to-play does not make its binaries free to re-host. Each friend who wants
-to run *their own* server makes their own patched folder the same way.
+Zip the folder to `game.zip` and upload it to the VPS (or host it privately and
+set `GAME_URL`). This is **your** licensed copy — keep it private. Do **not**
+redistribute it: ATT being free-to-play does not make its binaries free to
+re-host. Each friend who wants to run *their own* server uses their own copy the
+same way.
 
 ---
 
@@ -73,8 +83,10 @@ to run *their own* server makes their own patched folder the same way.
 
 | Var | Meaning |
 |---|---|
-| `ATT_GAME_DIR` | Path to the patched game folder. Default `./game`. |
+| `ATT_GAME_DIR` | Path to the game folder. Default `./game`. |
 | `GAME_URL` | Optional: URL to a zip/tarball of **your** game folder; auto-downloaded. |
+| `AUTO_PATCH` | `1` (default) = bring the game folder to the pinned Tavern release at boot; `0` = boot as-is. |
+| `TAVERN_VERSION` | Pinned TavernLauncher release tag (`v1.8.1`); `latest` tracks upstream. Bump deliberately — players must update their launcher in step. |
 | `SERVER_NAME` | Name friends see for your server. No quotes; spaces OK. (v1.8.1 dropped the separate description field.) |
 | `COMMUNITY_LISTED` | `1` = advertise on the community list, `0` = unlisted. Blank = listed if `LISTING_TOKEN` is set. |
 | `PUBLIC_HOSTNAME` | Address the listing advertises (new in v1.8.1). Blank = auto-detect this box's IPv4. |
@@ -143,6 +155,24 @@ in ufw either way.
 
 ---
 
+## Upgrading (kit or game)
+
+Everything upgrades from the VPS — the game folder patches itself in place:
+
+```bash
+cd ~/att-server-docker
+docker compose down && git pull && docker compose build && docker compose up -d
+```
+
+When Modding Tavern ships a new TavernLauncher release: wait for this repo to
+bump the pinned `TAVERN_VERSION` default (or set it yourself in `.env`), then run
+the same three commands. Force a re-patch without waiting for a boot:
+`docker compose run --rm att-server update` (server stopped). Remember your
+players sit on the same release train — a server version bump usually means they
+must update their launcher too.
+
+---
+
 ## Testing it works (before giving it to anyone)
 
 1. **Boot and watch logs:**
@@ -192,7 +222,8 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
   reach your server's 1762 auth service. Check it's listening
   (`docker exec att-server ss -ltn | grep 1762`), that ufw allows 1762/tcp, AND your
   provider's panel firewall does too. A v1.8.1 client against an old (pre-1.8.1)
-  game folder also fails exactly here — re-patch (see UPGRADE-1.8.1.md).
+  game folder also fails exactly here — with `AUTO_PATCH=1` that shouldn't happen;
+  check the boot log's `[patcher]` lines and `./game/.tavern-patch-version`.
 - **A friend gets "Name taken … or you lost the token to your account":** someone
   already registered that username on your server (accounts live in `users.json`),
   or they reinstalled and lost their local token. Pick another name, or clear their
@@ -209,11 +240,12 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
   Dockerfile and `docker compose build --no-cache`.
 - **Wine faults early (ptrace/seccomp):** uncomment `cap_add: [SYS_PTRACE]` and
   `security_opt: [seccomp:unconfined]` in `docker-compose.yml`.
-- **Voice chat:** v1.8.x uses CircuitLord's **official** voice (CircuitsVoiceChat),
-  installed as a mod in your patched game folder — it rides the game's own channel
-  (port 1757), so there's nothing to run or open server-side. If someone can't be
-  heard, make sure they installed the voice mod when patching (it's the first
-  *optional* mod in the launcher). The old self-hosted `att-voice` relay is gone.
+- **Voice chat:** v1.8.x uses CircuitLord's **official** voice (CircuitsVoiceChat) —
+  it rides the game's own channel (port 1757), so there's nothing to run or open
+  server-side, and the auto-patcher installs it in the server folder for you. If
+  someone can't be heard, make sure *they* installed the voice mod when patching
+  their client (it's the first *optional* mod in the launcher). The old
+  self-hosted `att-voice` relay is gone.
 
 ---
 
@@ -225,9 +257,10 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
 | `UPGRADE-1.8.1.md` | **v1.8.1 specifics: the 1762 auth service, JSON config, `public_hostname`, commands.** |
 | `UPGRADE-1.8.0.md` | The previous hop (native listing, voice, `users.json`). |
 | `install.sh` | One-command installer (Docker + repo + .env + token + game files + firewall + up). |
+| `patcher.sh` | Brings the game folder to the pinned TavernLauncher release at boot (core patch, TavernLib, MelonLoader, voice). |
 | `register.sh` | The IPv4 listing heartbeat — **fallback** only, run via `--profile fallback`. |
 | `Dockerfile` | Ubuntu 22.04 + winehq-stable + Xvfb; seeds the Wine prefix. |
-| `entrypoint.sh` | Writes `server_settings.json`/`tavern_server.json` from `.env`, starts Xvfb, launches the server, streams logs, handles SIGTERM. |
+| `entrypoint.sh` | Runs the patcher, writes `server_settings.json`/`tavern_server.json` from `.env`, starts Xvfb, launches the server, streams logs, handles SIGTERM. |
 | `docker-compose.yml` | Server + opt-in register fallback, host networking, volumes, env. |
 | `.env.example` | Config template (tokens, game path, server name, listing token). |
 | `.gitignore` | Blocks `.env`, `game/`, and archives from commits. |

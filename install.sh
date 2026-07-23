@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-command installer for the A Township Tale headless server (Docker + Wine).
-# You supply your OWN patched game files — this kit ships no game binaries.
+# You supply your OWN game files — this kit ships no game binaries. A clean BASE
+# install is enough: the container patches it (TavernLauncher release) on boot.
 #
 # Usage (from a clone):        ./install.sh [/path/to/patched/game]
 # Usage (bootstrap, no clone): curl -fsSL https://raw.githubusercontent.com/Nyx12012/att-server-docker/main/install.sh | bash
@@ -129,12 +130,14 @@ if [ ! -f "$ATT_GAME_DIR/A Township Tale.exe" ]; then
     flatten_game
     ATT_GAME_DIR="./game"
   else
-    die "No game files yet. Upload YOUR patched server folder as a zip to \
-'$REPO_DIR/game.zip' (or put the folder at '$ATT_GAME_DIR' so '$ATT_GAME_DIR/A Township Tale.exe' \
-exists, or set GAME_URL in .env), then run ./install.sh again. See SETUP-GUIDE.md."
+    die "No game files yet. Upload YOUR game folder as a zip to \
+'$REPO_DIR/game.zip' (a clean base install is enough — the container patches it \
+at boot; an already-patched folder works too). Or put the folder at '$ATT_GAME_DIR' \
+so '$ATT_GAME_DIR/A Township Tale.exe' exists, or set GAME_URL in .env — then run \
+./install.sh again. See SETUP-GUIDE.md."
   fi
 fi
-[ -f "$ATT_GAME_DIR/version.dll" ] || log "WARNING: no version.dll in the game folder — is it actually patched (MelonLoader)? Mods won't load without it."
+[ -f "$ATT_GAME_DIR/version.dll" ] || log "No version.dll yet — fine: auto-patch installs MelonLoader + the Tavern patch on first boot."
 log "Game files OK at: $ATT_GAME_DIR"
 
 # --- 5. Firewall -------------------------------------------------------------

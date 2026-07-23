@@ -7,6 +7,15 @@ GAME_DIR="${GAME_DIR:-/game}"
 GAME_EXE="${GAME_EXE:-A Township Tale.exe}"
 INSTANCE_ID="${INSTANCE_ID:--1}"
 SERVER_PORT="${SERVER_PORT:-1757}"
+PATCHER="${PATCHER:-/patcher.sh}"
+export GAME_DIR
+
+# One-shot re-patch (server stopped): docker compose run --rm att-server update
+if [ "${1:-}" = "update" ]; then
+  "$PATCHER" force
+  echo "[entrypoint] update complete — start normally with: docker compose up -d"
+  exit 0
+fi
 
 : "${ATT_ACCESS_TOKEN:?set ATT_ACCESS_TOKEN in .env}"
 : "${ATT_REFRESH_TOKEN:?set ATT_REFRESH_TOKEN in .env}"
@@ -14,8 +23,17 @@ SERVER_PORT="${SERVER_PORT:-1757}"
 
 echo "[entrypoint] game dir: $GAME_DIR  instance: $INSTANCE_ID  port: $SERVER_PORT"
 if [ ! -f "$GAME_DIR/$GAME_EXE" ]; then
-  echo "[entrypoint] ERROR: '$GAME_DIR/$GAME_EXE' not found. Did you mount your patched game folder to $GAME_DIR? See README." >&2
+  echo "[entrypoint] ERROR: '$GAME_DIR/$GAME_EXE' not found. Did you mount your game folder to $GAME_DIR? See README." >&2
   exit 1
+fi
+
+# Keep the game folder on the pinned TavernLauncher release (no-op when already
+# current). This is what makes `git pull && docker compose up -d --build` a full
+# upgrade. AUTO_PATCH=0 boots with whatever is in the folder (hand-patched setups).
+if [ "${AUTO_PATCH:-1}" = "1" ]; then
+  "$PATCHER"
+else
+  echo "[entrypoint] AUTO_PATCH=0 — skipping patch check"
 fi
 if [ ! -f "$GAME_DIR/version.dll" ]; then
   echo "[entrypoint] WARNING: $GAME_DIR/version.dll missing — MelonLoader won't inject. Is this folder actually patched?" >&2
@@ -83,6 +101,12 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
 
   [ "$listed" = "true" ] && adv="listed" || adv="unlisted"
   echo "[entrypoint] wrote server_settings.json (name='${SERVER_NAME:-My Township Server}', $adv, public_hostname='${pub:-unset}') + tavern_server.json (port ${SERVER_PORT:-1757})"
+fi
+
+# Debug/test knob: write the configs and stop before touching Xvfb/Wine.
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+  echo "[entrypoint] CONFIG_ONLY=1 — configs written, not launching the server."
+  exit 0
 fi
 
 # --- virtual display ---------------------------------------------------------

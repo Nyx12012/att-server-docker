@@ -4,10 +4,16 @@
 someone's server, you don't need any of this — patch your game the normal way and type
 their IP.
 
-This produces one file — **`game.zip`** — which is your own patched copy of the game.
-The server kit ships no game files, so you make this yourself. Takes ~15 minutes.
+This produces one file — **`game.zip`** — which is your own copy of the game.
+The server kit ships no game files, so you make this yourself. Takes ~10 minutes.
 
 **You need:** a Windows PC and *A Township Tale* (a **free** download on Steam).
+
+> **Since v1.8.1 you do NOT patch anything for the server.** The container patches
+> the game itself on every start (it applies the latest pinned TavernLauncher
+> release, exactly like the launcher's Patch button). A clean, unpatched copy is
+> the ideal input. An already-patched folder works too — the patcher just tops it
+> up — but clean is simpler and never gets out of date.
 
 ---
 
@@ -16,31 +22,25 @@ The server kit ships no game files, so you make this yourself. Takes ~15 minutes
 If it's not already installed: get **A Township Tale** on Steam and let it finish
 downloading. You do **not** need a VR headset for this part.
 
-## 2. Patch it with TavernLauncher
+## 2. Find the game folder
 
-Use the **Modding Tavern TavernLauncher** — the same tool you use to play modded ATT.
+It's usually your Steam game folder:
+`C:\Program Files (x86)\Steam\steamapps\common\A Township Tale`
+(In Steam you can also right-click the game → **Manage → Browse local files**.)
 
-1. Open TavernLauncher.
-2. Choose the **Server** option (not Client), then click **Patch** and let it finish.
-   *(If you run any mods, apply them too.)*
-3. When it's done, it has turned a copy of the game into a **server folder**.
-
-> Not sure where the folder is? It's usually your Steam game folder:
-> `C:\Program Files (x86)\Steam\steamapps\common\A Township Tale`
-> (In Steam you can also right-click the game → **Manage → Browse local files**.)
+If you have a clean backup from before you patched your client, use that instead —
+it's the perfect server source.
 
 ## 3. Check you have the right folder ✅
 
-Open that folder. It's correct **only if you can see all of these** inside it:
+Open the folder. It's correct **only if you can see both of these** inside it:
 
 - `A Township Tale.exe`
-- `version.dll`   ← this one means the patch worked (don't skip it)
 - a folder named `A Township Tale_Data`
-- a folder named `MelonLoader`
-- `Plugins\TavernLib.dll`   (inside the `Plugins` folder)
 
-If `version.dll` or `Plugins\TavernLib.dll` are missing, the patch didn't fully apply —
-run TavernLauncher's **Patch** again.
+That's all the server needs — MelonLoader, TavernLib, and the core patch are
+installed by the container itself. (Extra files from a patched install, like
+`version.dll` or `MelonLoader\`, are fine to leave in.)
 
 ## 4. Zip it → `game.zip`
 
