@@ -15,7 +15,7 @@
 set -euo pipefail
 
 GAME_DIR="${GAME_DIR:-/game}"
-WANT="${TAVERN_VERSION:-v1.8.1}"     # pinned; "latest" tracks upstream releases
+WANT="${TAVERN_VERSION:-v1.8.2}"     # pinned; "latest" tracks upstream releases
 STAMP="$GAME_DIR/.tavern-patch-version"
 FORCE="${1:-}"
 

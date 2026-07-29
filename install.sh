@@ -48,9 +48,14 @@ configure_firewall(){
   # launcher must reach it to join — this is no longer the "allowed-but-refused
   # probe" trick, it's a live listener that must be open.
   $S ufw allow 1762/tcp  >/dev/null 2>&1 || true
+  # 1760 (the v1.8.2 TavernLib WebSocket console) is deliberately NOT opened.
+  # It speaks plaintext, its permission checks are bypassed, and its token never
+  # expires — anyone who reaches it owns the server. Default-deny keeps it shut;
+  # reach it over an SSH tunnel instead. docker-compose uses network_mode: host,
+  # so there is no Docker NAT chain bypassing ufw here.
   $S ufw --force enable   >/dev/null 2>&1 || true
   $S ufw reload           >/dev/null 2>&1 || true
-  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, 1762/tcp(auth) open; 1763/1764 stay closed."
+  log "Firewall: 22, 1757/tcp+udp, 1761/tcp, 1762/tcp(auth) open; 1760/1763/1764 stay closed."
   # Voice (CircuitsVoiceChat) rides the game channel — no extra port to open.
 }
 

@@ -1,6 +1,13 @@
 # Never commit secrets or game binaries
 .env
 game/
+
+# v1.8.2 server credentials. These normally live in the wineprefix volume
+# (%APPDATA%/TheModdingTavern/), not here — but never commit a stray copy.
+# server_secret.key signs the console token; console_token.txt IS a console
+# login that does not expire.
+server_secret.key
+console_token.txt
 *.zip
 *.tar.gz
 *.tgz

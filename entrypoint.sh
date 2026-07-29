@@ -39,14 +39,19 @@ if [ ! -f "$GAME_DIR/version.dll" ]; then
   echo "[entrypoint] WARNING: $GAME_DIR/version.dll missing — MelonLoader won't inject. Is this folder actually patched?" >&2
 fi
 
-# --- server_settings.json / tavern_server.json (v1.8.1 / TavernLib v1.3) ------
+# --- server_settings.json / tavern_server.json (v1.8.2) -----------------------
 # v1.8.1 dropped server-config.yaml entirely (YamlDotNet removed). TavernLib now
 # reads JSON from the Wine user's AppData:
 #   …/TheModdingTavern/server_settings.json  name, listing, whitelist, password
 #   …/TheModdingTavern/tavern_server.json    server_port
 # The same folder also holds users.json — the accounts friends register through
-# the NEW auth service the server runs on TCP 1762. It all sits inside the
-# wineprefix volume, so accounts and settings survive restarts/rebuilds.
+# the auth service the server runs on TCP 1762 — and, since v1.8.2, two console
+# credentials TavernLib creates on first boot:
+#   …/TheModdingTavern/server_secret.key     HMAC key that signs the console token
+#   …/TheModdingTavern/console_token.txt     a console login that NEVER expires
+# It all sits inside the wineprefix volume, so accounts, settings and keys
+# survive restarts/rebuilds. Treat that volume as a credential store: never
+# share it, never commit it, never bake it into an image.
 # We regenerate the managed fields every boot so .env stays the single source of
 # truth; the community_listing_token and password_hash already in the file are
 # preserved (TavernLib auto-generates a token if it's blank). Set
@@ -111,6 +116,7 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
 
   [ "$listed" = "true" ] && adv="listed" || adv="unlisted"
   echo "[entrypoint] wrote server_settings.json (name='${SERVER_NAME:-My Township Server}', $adv, public_hostname='${pub:-unset}') + tavern_server.json (port ${SERVER_PORT:-1757})"
+  echo "[entrypoint] console credentials: $tav_dir/{server_secret.key,console_token.txt} — TavernLib creates them on first boot; keep them private"
 fi
 
 # Debug/test knob: write the configs and stop before touching Xvfb/Wine.

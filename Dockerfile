@@ -1,5 +1,5 @@
 # A Township Tale — headless server under Wine (Linux/VPS)
-# For Modding Tavern TavernLauncher v1.8.1. Image carries Wine + Xvfb ONLY. Your
+# For Modding Tavern TavernLauncher v1.8.2. Image carries Wine + Xvfb ONLY. Your
 # game folder is mounted in at runtime (see docker-compose.yml / README.md) — no
 # game binaries are baked into this image. On boot, patcher.sh brings the folder
 # to the pinned TavernLauncher release (a clean base game is enough to supply).
@@ -54,6 +54,10 @@ RUN chmod +x /entrypoint.sh /patcher.sh
 # 1761 "forest"/native web (/cache + Alta console REST), 1762 TavernLib auth
 # service (LIVE since v1.8.1 — the server binds it and the launcher requires it
 # to join), 1763 community API (themoddingtavern.com, outbound).
+#
+# NOT exposed, deliberately: 1760, the TavernLib WebSocket console added in
+# v1.8.2. It speaks plaintext, its permission checks are bypassed, and its token
+# never expires — keep it loopback-only and reach it through an SSH tunnel.
 EXPOSE 1757/udp 1757/tcp 1761/tcp 1762/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]

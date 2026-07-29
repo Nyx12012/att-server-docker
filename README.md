@@ -11,11 +11,11 @@ boot, so kit + game upgrades are just `git pull` and a restart).
 > step-by-step, zero-experience walkthrough (buy a VPS → run one command → play).
 > This README is the technical reference.
 
-> **On TavernLauncher v1.8.1** — a **breaking** update: v1.8.1 clients cannot
-> join servers still running older game folders (the server now hosts the auth
-> service the launcher requires, on TCP 1762). See
-> **[UPGRADE-1.8.1.md](UPGRADE-1.8.1.md)** for what changed and the exact
-> command sequence. (`UPGRADE-1.8.0.md` covers the previous hop.)
+> **On TavernLauncher v1.8.2** — adds a WebSocket console on TCP 1760 (this kit
+> keeps it closed) and two console credential files in the server volume. See
+> **[UPGRADE-1.8.2.md](UPGRADE-1.8.2.md)**. Update your players' launchers in
+> step: the launcher release pins both sides, and a mismatch has refused joins
+> before. (`UPGRADE-1.8.1.md` covers the breaking 1762 auth hop before it.)
 
 > **What this is:** deployment tooling only. It contains **no game binaries** — you
 > point it at your own copy of the game; the container downloads only Modding
@@ -86,13 +86,13 @@ same way.
 | `ATT_GAME_DIR` | Path to the game folder. Default `./game`. |
 | `GAME_URL` | Optional: URL to a zip/tarball of **your** game folder; auto-downloaded. |
 | `AUTO_PATCH` | `1` (default) = bring the game folder to the pinned Tavern release at boot; `0` = boot as-is. |
-| `TAVERN_VERSION` | Pinned TavernLauncher release tag (`v1.8.1`); `latest` tracks upstream. Bump deliberately — players must update their launcher in step. |
+| `TAVERN_VERSION` | Pinned TavernLauncher release tag (`v1.8.2`); `latest` tracks upstream. Bump deliberately — players must update their launcher in step. This pins the **launcher**, which decides which TavernLib you get; see UPGRADE-1.8.2.md. |
 | `SERVER_NAME` | Name friends see for your server. No quotes; spaces OK. (v1.8.1 dropped the separate description field.) |
 | `COMMUNITY_LISTED` | `1` = advertise on the community list, `0` = unlisted. Blank = listed if `LISTING_TOKEN` is set. |
 | `PUBLIC_HOSTNAME` | Address the listing advertises (new in v1.8.1). Blank = auto-detect this box's IPv4. |
 | `LISTING_TOKEN` | Your private listing key — any long random string, unique to you. Blank = TavernLib generates one on first boot (`install.sh` may also fill it in). |
 | `MAX_PLAYERS` | Advertised player cap. |
-| `WHITELIST_ENABLED` / `ENFORCE_IP_LIMIT` / `SERVER_PASSWORD_HASH` | v1.8.1 auth-service knobs (see UPGRADE-1.8.1.md). |
+| `WHITELIST_ENABLED` / `ENFORCE_IP_LIMIT` / `SERVER_PASSWORD_HASH` | Auth-service knobs. **Read UPGRADE-1.8.2.md before touching these** — leave `ENFORCE_IP_LIMIT=0` (its check counts wrong and locks everyone out past 4 accounts), `WHITELIST_ENABLED` is never read, and the password hash is a *double* SHA-256. |
 | `COMMUNITY_HOST` | Community backend host. Leave as `themoddingtavern.com`. |
 | `INSTANCE_ID` / `SERVER_PORT` | Instance id (`-1`) and game port (`1757`) — match the official launcher. |
 | `ATT_ACCESS/REFRESH/IDENTITY_TOKEN` | Offline JWTs (leave as-is; they contact no Alta service). |
@@ -143,6 +143,7 @@ one if you leave it blank.
 |---|---|---|---|
 | 1757 | UDP + TCP | Game traffic (KCP). Players connect here. | **Open** |
 | 1761 | TCP | "Forest"/native web server: world & terrain `/cache`. | **Open** (or friends get broken terrain) |
+| 1760 | TCP | **TavernLib WebSocket console — new in v1.8.2.** Its token never expires. | **Keep closed** — tunnel over SSH |
 | 1762 | TCP | **TavernLib auth service — LIVE since v1.8.1.** The launcher must reach it to join. | **Open** |
 | 1763 | TCP | Community API on `themoddingtavern.com`. | **Outbound only** (don't block egress) |
 | 1764 | TCP | Optional admin console (see below). | **Keep closed** (loopback-only) |
@@ -254,7 +255,8 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
 | File | Role |
 |---|---|
 | `SETUP-GUIDE.md` | **Start here if you're new** — zero-experience step-by-step. |
-| `UPGRADE-1.8.1.md` | **v1.8.1 specifics: the 1762 auth service, JSON config, `public_hostname`, commands.** |
+| `UPGRADE-1.8.2.md` | **v1.8.2 specifics: the 1760 console, the two credential files, the join-password recipe, and two settings that don't do what they read.** |
+| `UPGRADE-1.8.1.md` | v1.8.1 specifics: the 1762 auth service, JSON config, `public_hostname`, commands. |
 | `UPGRADE-1.8.0.md` | The previous hop (native listing, voice, `users.json`). |
 | `install.sh` | One-command installer (Docker + repo + .env + token + game files + firewall + up). |
 | `patcher.sh` | Brings the game folder to the pinned TavernLauncher release at boot (core patch, TavernLib, MelonLoader, voice). |

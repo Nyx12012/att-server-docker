@@ -2,10 +2,16 @@ services:
   # The game server itself (headless ATT under Wine).
   att-server:
     build: .
-    image: att-server:1.8.1
+    image: att-server:1.8.2
     container_name: att-server
     restart: unless-stopped
     env_file: .env
+    # Give the world time to flush on `docker compose down`. Docker's default is
+    # 10s, then SIGKILL — far too short for a Unity save, and TavernLib's listing
+    # code makes shutdown slower still (it cancels the first quit request while it
+    # de-lists, see UPGRADE-1.8.2.md → "Shutdown"). A SIGKILL mid-save is how
+    # worlds get corrupted, so buy plenty of headroom.
+    stop_grace_period: 120s
     # REQUIRED. Under Docker's default bridge network the game binds UDP 1757 on
     # IPv6 only ([::]), so friends connecting over IPv4 hit nothing and every join
     # silently times out. Host networking makes it bind dual-stack (*:1757)
@@ -23,9 +29,9 @@ services:
     # cap_add: [SYS_PTRACE]
     # security_opt: [seccomp:unconfined]
 
-  # OPTIONAL community-listing heartbeat — the FALLBACK, rarely needed on v1.8.1.
+  # OPTIONAL community-listing heartbeat — the FALLBACK, rarely needed on v1.8.2.
   #
-  # TavernLib v1.3 advertises the server itself (native listing, every ~3s) and
+  # TavernLib advertises the server itself (native listing, every ~3s) and
   # its payload now carries a `hostname` field — the entrypoint fills it with your
   # IPv4 (PUBLIC_HOSTNAME in .env, auto-detected if blank), which is the clean fix
   # for the old "VPS registers over IPv6, friends type the IPv4" mismatch. This
