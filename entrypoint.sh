@@ -39,7 +39,7 @@ if [ ! -f "$GAME_DIR/version.dll" ]; then
   echo "[entrypoint] WARNING: $GAME_DIR/version.dll missing — MelonLoader won't inject. Is this folder actually patched?" >&2
 fi
 
-# --- server_settings.json / tavern_server.json (v1.8.2) -----------------------
+# --- server_settings.json / tavern_server.json (v1.8.1+) ----------------------
 # v1.8.1 dropped server-config.yaml entirely (YamlDotNet removed). TavernLib now
 # reads JSON from the Wine user's AppData:
 #   …/TheModdingTavern/server_settings.json  name, listing, whitelist, password
@@ -54,8 +54,10 @@ fi
 # share it, never commit it, never bake it into an image.
 # We regenerate the managed fields every boot so .env stays the single source of
 # truth; the community_listing_token and password_hash already in the file are
-# preserved (TavernLib auto-generates a token if it's blank). Set
-# WRITE_SERVER_CONFIG=0 to leave hand-tuned files alone.
+# preserved (TavernLib auto-generates a token if it's blank), and so are the two
+# v1.8.3 fields — region (the community-list region label) and quest_scene —
+# unless REGION_TAG / QUEST_SCENE override them. Set WRITE_SERVER_CONFIG=0 to
+# leave hand-tuned files alone.
 if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
   tav_dir="${TAVERN_DIR:-}"
   if [ -z "$tav_dir" ]; then
@@ -75,6 +77,12 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
   # Keep what TavernLib (or the owner) already stored unless .env overrides it.
   tok="${LISTING_TOKEN:-}";        [ -z "$tok" ] && [ -f "$cfg" ] && tok="$(jget "$cfg" community_listing_token)"
   pwh="${SERVER_PASSWORD_HASH:-}"; [ -z "$pwh" ] && [ -f "$cfg" ] && pwh="$(jget "$cfg" password_hash)"
+  reg="${REGION_TAG:-}";           [ -z "$reg" ] && [ -f "$cfg" ] && reg="$(jget "$cfg" region)"
+  reg="${reg:-unknown}"
+  # quest_scene is a bare JSON bool, which string-only jget can't see.
+  qs="${QUEST_SCENE:-}"
+  [ -z "$qs" ] && [ -f "$cfg" ] && qs="$(grep -o '"quest_scene"[[:space:]]*:[[:space:]]*[a-z]*' "$cfg" 2>/dev/null | head -1 | sed 's/.*:[[:space:]]*//' || true)"
+  case "$qs" in 1|true|yes) qs=true ;; *) qs=false ;; esac
 
   # Listed unless told otherwise. (Old kit semantics: token present = listed.)
   listed="${COMMUNITY_LISTED:-}"
@@ -106,6 +114,8 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
     echo "  \"community_listed\": $listed,"
     echo "  \"max_players\": ${MAX_PLAYERS:-8},"
     echo "  \"community_listing_token\": \"$(jesc "$tok")\","
+    echo "  \"quest_scene\": $qs,"
+    echo "  \"region\": \"$(jesc "$reg")\","
     echo "  \"public_hostname\": \"$(jesc "$pub")\""
     echo "}"
   } > "$cfg"
@@ -115,7 +125,7 @@ if [ "${WRITE_SERVER_CONFIG:-1}" = "1" ]; then
   rm -f "$GAME_DIR/server-config.yaml"
 
   [ "$listed" = "true" ] && adv="listed" || adv="unlisted"
-  echo "[entrypoint] wrote server_settings.json (name='${SERVER_NAME:-My Township Server}', $adv, public_hostname='${pub:-unset}') + tavern_server.json (port ${SERVER_PORT:-1757})"
+  echo "[entrypoint] wrote server_settings.json (name='${SERVER_NAME:-My Township Server}', $adv, region='$reg', public_hostname='${pub:-unset}') + tavern_server.json (port ${SERVER_PORT:-1757})"
   echo "[entrypoint] console credentials: $tav_dir/{server_secret.key,console_token.txt} — TavernLib creates them on first boot; keep them private"
 fi
 

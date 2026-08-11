@@ -3,6 +3,9 @@
 # buttons do on Windows: core Root.Township.dll patch, Plugins/TavernLib.dll,
 # MelonLoader, and the voice mod — all extracted from ONE pinned TavernLauncher
 # release zip (Modding Tavern's own released files; the game itself stays yours).
+# Since v1.8.3 the kit also overlays Plugins/TavernLib.dll with a pinned
+# TavernLib release asset, because the launcher-bundled DLL has shipped stale or
+# broken more than once (see TAVERNLIB_VERSION below).
 #
 # Idempotent: .tavern-patch-version in the game folder records the applied
 # release; if it matches the wanted version this is a no-op, so it's safe to run
@@ -15,7 +18,18 @@
 set -euo pipefail
 
 GAME_DIR="${GAME_DIR:-/game}"
-WANT="${TAVERN_VERSION:-v1.8.2}"     # pinned; "latest" tracks upstream releases
+WANT="${TAVERN_VERSION:-v1.8.3}"     # pinned; "latest" tracks upstream releases
+
+# TavernLib moves independently of the launcher. v1.8.3 bundles the v1.5.0
+# build, whose KCP auth rejects brand-new joiners; the fixed v1.5.1 exists ONLY
+# as a release asset (its git tag points at the same commit as v1.5.0 — only the
+# binary differs). So after the launcher patch we install the pinned TavernLib
+# release asset over the bundled DLL. TAVERNLIB_VERSION=bundled keeps the
+# launcher's own copy; "latest" tracks TavernLib releases.
+TLWANT="${TAVERNLIB_VERSION:-v1.5.1}"
+TLSUM="${TAVERNLIB_SHA256:-}"
+[ "$TLWANT" = "v1.5.1" ] && [ -z "$TLSUM" ] && TLSUM="3c02046c9647821ea549f35a113d4f8f48a0130252b7efc8d83dae7a98bd6074"
+
 STAMP="$GAME_DIR/.tavern-patch-version"
 FORCE="${1:-}"
 
@@ -32,11 +46,19 @@ if [ "$WANT" = "latest" ]; then
   [ -n "$WANT" ] || die "could not resolve the latest TavernLauncher release (GitHub unreachable?). Pin TAVERN_VERSION or set AUTO_PATCH=0."
 fi
 
+if [ "$TLWANT" = "latest" ]; then
+  TLWANT="$(curl -sfI -o /dev/null -w '%{redirect_url}' \
+    "https://github.com/ModdingTavern/TavernLib/releases/latest" | sed 's|.*/||')"
+  [ -n "$TLWANT" ] || die "could not resolve the latest TavernLib release. Pin TAVERNLIB_VERSION or set it to 'bundled'."
+fi
+WANTSTAMP="$WANT"
+[ "$TLWANT" != "bundled" ] && WANTSTAMP="$WANT+tavernlib-$TLWANT"
+
 HAVE=""
 [ -f "$STAMP" ] && HAVE="$(cat "$STAMP")"
-if [ "$FORCE" != "force" ] && [ "$HAVE" = "$WANT" ] \
+if [ "$FORCE" != "force" ] && [ "$HAVE" = "$WANTSTAMP" ] \
    && [ -f "$GAME_DIR/Plugins/TavernLib.dll" ] && [ -f "$GAME_DIR/version.dll" ]; then
-  log "game folder already patched for TavernLauncher $WANT"
+  log "game folder already patched for TavernLauncher $WANTSTAMP"
   exit 0
 fi
 
@@ -68,6 +90,22 @@ log "installing Plugins/TavernLib.dll"
 mkdir -p "$GAME_DIR/Plugins"
 cp -f "$TMP/TavernLib.dll" "$GAME_DIR/Plugins/TavernLib.dll"
 
+# Overlay the pinned TavernLib release asset over the bundled DLL (see header).
+# Fails loudly rather than silently keeping a bundled DLL with a known join bug.
+if [ "$TLWANT" != "bundled" ]; then
+  TLURL="https://github.com/ModdingTavern/TavernLib/releases/download/$TLWANT/TavernLib.dll"
+  log "overlaying TavernLib $TLWANT release asset…"
+  curl -sfL --retry 3 -o "$TMP/TavernLib.release.dll" "$TLURL" \
+    || die "download failed: $TLURL — set TAVERNLIB_VERSION=bundled to keep the launcher's own TavernLib."
+  if [ -n "$TLSUM" ]; then
+    printf '%s  %s\n' "$TLSUM" "$TMP/TavernLib.release.dll" | sha256sum -c - >/dev/null \
+      || die "TavernLib $TLWANT sha256 mismatch — the asset changed upstream. Verify it, then set TAVERNLIB_SHA256 to the new hash (or blank to skip the check)."
+  else
+    log "NOTE: no TAVERNLIB_SHA256 for $TLWANT — installing unverified"
+  fi
+  cp -f "$TMP/TavernLib.release.dll" "$GAME_DIR/Plugins/TavernLib.dll"
+fi
+
 # Voice: the launcher installs the versioned dll as plain CircuitsVoiceChat.dll
 # (keeping the version suffix would stack old+new mods) + Concentus in UserLibs.
 if [ -n "$CVC" ]; then
@@ -79,5 +117,5 @@ else
   log "WARNING: no CircuitsVoiceChat*.dll in this release — leaving voice files as they are"
 fi
 
-printf '%s\n' "$WANT" > "$STAMP"
-log "done — game folder is on TavernLauncher $WANT (your own mods untouched)"
+printf '%s\n' "$WANTSTAMP" > "$STAMP"
+log "done — game folder is on TavernLauncher $WANTSTAMP (your own mods untouched)"

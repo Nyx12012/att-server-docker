@@ -2,7 +2,7 @@ services:
   # The game server itself (headless ATT under Wine).
   att-server:
     build: .
-    image: att-server:1.8.2
+    image: att-server:1.8.3
     container_name: att-server
     restart: unless-stopped
     env_file: .env

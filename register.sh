@@ -6,7 +6,9 @@
 # over IPv6, friends type the IPv4" mismatch should be gone. Keep this around for
 # the case where the native listing still doesn't resolve to your IPv4: it
 # re-POSTs the listing forced over IPv4 (curl -4) with the same payload shape
-# TavernLib v1.3 sends.
+# TavernLib sends (v1.5 adds `version` + `region` — the hardcoded "1.5.1" below
+# tracks TAVERNLIB_VERSION; bump them together or the listing shows a stale
+# version).
 set -eu
 
 : "${SERVER_NAME:?set SERVER_NAME in .env}"
@@ -26,7 +28,7 @@ while true; do
   code=$(curl -4 -s -o /dev/null -w '%{http_code}' \
     -X POST "http://$HOST:1763/servers" \
     -H 'Content-Type: application/json' \
-    -d "{\"listing_token\":\"$LISTING_TOKEN\",\"name\":\"$SERVER_NAME\",\"port\":$PORT,\"player_limit\":$LIMIT,\"has_password\":false,\"player_count\":0,\"community_listed\":true,\"hostname\":\"$PUB\"}" \
+    -d "{\"listing_token\":\"$LISTING_TOKEN\",\"name\":\"$SERVER_NAME\",\"port\":$PORT,\"player_limit\":$LIMIT,\"has_password\":false,\"player_count\":0,\"community_listed\":true,\"hostname\":\"$PUB\",\"version\":\"1.5.1\",\"region\":\"${REGION_TAG:-unknown}\"}" \
     2>/dev/null || echo "000")
   [ "$code" = "200" ] || echo "[register] POST returned $code — will retry in 15s"
   # v1.3 servers heartbeat every ~3s; the backend TTL may have shrunk to match,

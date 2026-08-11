@@ -1,5 +1,5 @@
 # A Township Tale — headless server under Wine (Linux/VPS)
-# For Modding Tavern TavernLauncher v1.8.2. Image carries Wine + Xvfb ONLY. Your
+# For Modding Tavern TavernLauncher v1.8.3. Image carries Wine + Xvfb ONLY. Your
 # game folder is mounted in at runtime (see docker-compose.yml / README.md) — no
 # game binaries are baked into this image. On boot, patcher.sh brings the folder
 # to the pinned TavernLauncher release (a clean base game is enough to supply).
