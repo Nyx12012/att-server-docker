@@ -90,6 +90,7 @@ same way.
 | `AUTO_PATCH` | `1` (default) = bring the game folder to the pinned Tavern release at boot; `0` = boot as-is. |
 | `TAVERN_VERSION` | Pinned TavernLauncher release tag (`v1.8.3`); `latest` tracks upstream. Bump deliberately — players must update their launcher in step (1.8.3 refuses 1.8.2 clients outright). |
 | `TAVERNLIB_VERSION` / `TAVERNLIB_SHA256` | TavernLib release asset installed **over** the launcher-bundled DLL (default `v1.5.1`, checksum-verified). `bundled` keeps the launcher's copy. See UPGRADE-1.8.3.md — the bundled build has shipped broken before. |
+| `BASEPATCH_VERSION` / `BASEPATCH_SHA256` | Core patch (`themoddingtavern.dll` → `Root.Township.dll`) installed **over** the launcher zip's copy (default `v1.5.1`, checksum-verified). It ships from **TavernDefaults**, not from the launcher, so a launcher zip goes stale without its version changing — v1.8.3's carries `v1.5`. `bundled` keeps the zip's copy; `latest` tracks TavernDefaults like the Windows Patch button. |
 | `REGION_TAG` / `QUEST_SCENE` | v1.8.3 listing fields: region label in the community browser (blank = keep existing / "unknown") and the Quest-scene toggle (blank = keep existing / off). |
 | `SERVER_NAME` | Name friends see for your server. No quotes; spaces OK. (v1.8.1 dropped the separate description field.) |
 | `COMMUNITY_LISTED` | `1` = advertise on the community list, `0` = unlisted. Blank = listed if `LISTING_TOKEN` is set. |
@@ -264,7 +265,7 @@ later. It runs on **1764** and must stay **firewalled/loopback-only** — do **n
 | `UPGRADE-1.8.1.md` | v1.8.1 specifics: the 1762 auth service, JSON config, `public_hostname`, commands. |
 | `UPGRADE-1.8.0.md` | The previous hop (native listing, voice, `users.json`). |
 | `install.sh` | One-command installer (Docker + repo + .env + token + game files + firewall + up). |
-| `patcher.sh` | Brings the game folder to the pinned TavernLauncher release at boot (core patch, MelonLoader, voice), then overlays the pinned TavernLib release asset. |
+| `patcher.sh` | Brings the game folder to the pinned TavernLauncher release at boot (MelonLoader, voice), then overlays the pinned TavernLib and core-patch release assets. |
 | `register.sh` | The IPv4 listing heartbeat — **fallback** only, run via `--profile fallback`. |
 | `Dockerfile` | Ubuntu 22.04 + winehq-stable + Xvfb; seeds the Wine prefix. |
 | `entrypoint.sh` | Runs the patcher, writes `server_settings.json`/`tavern_server.json` from `.env`, starts Xvfb, launches the server, streams logs, handles SIGTERM. |

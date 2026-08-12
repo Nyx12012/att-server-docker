@@ -5,7 +5,8 @@
 # release zip (Modding Tavern's own released files; the game itself stays yours).
 # Since v1.8.3 the kit also overlays Plugins/TavernLib.dll with a pinned
 # TavernLib release asset, because the launcher-bundled DLL has shipped stale or
-# broken more than once (see TAVERNLIB_VERSION below).
+# broken more than once (see TAVERNLIB_VERSION below). The core patch itself gets
+# the same treatment for the same reason (see BASEPATCH_VERSION).
 #
 # Idempotent: .tavern-patch-version in the game folder records the applied
 # release; if it matches the wanted version this is a no-op, so it's safe to run
@@ -30,6 +31,18 @@ TLWANT="${TAVERNLIB_VERSION:-v1.5.1}"
 TLSUM="${TAVERNLIB_SHA256:-}"
 [ "$TLWANT" = "v1.5.1" ] && [ -z "$TLSUM" ] && TLSUM="3c02046c9647821ea549f35a113d4f8f48a0130252b7efc8d83dae7a98bd6074"
 
+# The core patch moves independently too, and it is NOT versioned by the launcher
+# release. On Windows the Patch button downloads themoddingtavern.dll from
+# TavernDefaults' *latest* release every time; the copy inside a launcher zip is
+# frozen at whatever was current the day that zip was cut. v1.8.3's zip carries
+# the TavernDefaults v1.5 build, and v1.5.1 — the global-populations hotfix,
+# published 2026-08-11 — exists ONLY as a release asset, with no new launcher.
+# So we overlay it exactly like TavernLib. BASEPATCH_VERSION=bundled keeps the
+# zip's copy; "latest" tracks TavernDefaults the way the Windows launchers do.
+BPWANT="${BASEPATCH_VERSION:-v1.5.1}"
+BPSUM="${BASEPATCH_SHA256:-}"
+[ "$BPWANT" = "v1.5.1" ] && [ -z "$BPSUM" ] && BPSUM="06e1fc38f1b1a592d30dcce34fe26b608d5c56761e7a23b8e165c32c8063d735"
+
 STAMP="$GAME_DIR/.tavern-patch-version"
 FORCE="${1:-}"
 
@@ -51,8 +64,17 @@ if [ "$TLWANT" = "latest" ]; then
     "https://github.com/ModdingTavern/TavernLib/releases/latest" | sed 's|.*/||')"
   [ -n "$TLWANT" ] || die "could not resolve the latest TavernLib release. Pin TAVERNLIB_VERSION or set it to 'bundled'."
 fi
+
+if [ "$BPWANT" = "latest" ]; then
+  BPWANT="$(curl -sfI -o /dev/null -w '%{redirect_url}' \
+    "https://github.com/ModdingTavern/TavernDefaults/releases/latest" | sed 's|.*/||')"
+  [ -n "$BPWANT" ] || die "could not resolve the latest TavernDefaults release. Pin BASEPATCH_VERSION or set it to 'bundled'."
+fi
+
+# Both pins go in the stamp, so bumping either one re-patches on the next boot.
 WANTSTAMP="$WANT"
-[ "$TLWANT" != "bundled" ] && WANTSTAMP="$WANT+tavernlib-$TLWANT"
+[ "$TLWANT" != "bundled" ] && WANTSTAMP="$WANTSTAMP+tavernlib-$TLWANT"
+[ "$BPWANT" != "bundled" ] && WANTSTAMP="$WANTSTAMP+base-$BPWANT"
 
 HAVE=""
 [ -f "$STAMP" ] && HAVE="$(cat "$STAMP")"
@@ -85,6 +107,23 @@ unzip -q -o "$TMP/MelonLoader.x64.zip" -d "$GAME_DIR"
 
 log "applying core patch (themoddingtavern.dll -> Managed/Root.Township.dll)"
 cp -f "$TMP/themoddingtavern.dll" "$MANAGED/Root.Township.dll"
+
+# Overlay the pinned TavernDefaults base patch over the launcher zip's frozen
+# copy (see header). This is the same file the Windows Patch button installs, so
+# pinning it here is what keeps a headless box on the same build as the players.
+if [ "$BPWANT" != "bundled" ]; then
+  BPURL="https://github.com/ModdingTavern/TavernDefaults/releases/download/$BPWANT/themoddingtavern.dll"
+  log "overlaying base patch (TavernDefaults $BPWANT)…"
+  curl -sfL --retry 3 -o "$TMP/themoddingtavern.release.dll" "$BPURL" \
+    || die "download failed: $BPURL — set BASEPATCH_VERSION=bundled to keep the launcher zip's copy."
+  if [ -n "$BPSUM" ]; then
+    printf '%s  %s\n' "$BPSUM" "$TMP/themoddingtavern.release.dll" | sha256sum -c - >/dev/null \
+      || die "TavernDefaults $BPWANT sha256 mismatch — the asset changed upstream. Verify it, then set BASEPATCH_SHA256 to the new hash (or blank to skip the check)."
+  else
+    log "NOTE: no BASEPATCH_SHA256 for $BPWANT — installing unverified"
+  fi
+  cp -f "$TMP/themoddingtavern.release.dll" "$MANAGED/Root.Township.dll"
+fi
 
 log "installing Plugins/TavernLib.dll"
 mkdir -p "$GAME_DIR/Plugins"

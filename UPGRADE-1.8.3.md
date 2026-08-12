@@ -15,6 +15,9 @@ Two things make this hop different from 1.8.2:
    at the same commit as v1.5.0. The kit therefore installs a pinned TavernLib
    release asset *over* the bundled DLL, sha256-verified
    (`TAVERNLIB_VERSION` / `TAVERNLIB_SHA256` in `.env`, default `v1.5.1`).
+   The same trap then bit the core patch itself — see "The core patch moves on
+   its own too" below — so `themoddingtavern.dll` is now pinned and verified the
+   same way (`BASEPATCH_VERSION` / `BASEPATCH_SHA256`, default `v1.5.1`).
 
 ## Upgrade steps
 
@@ -31,9 +34,11 @@ docker compose logs -f
 ```
 
 First boot after the bump prints `[patcher] downloading TavernLauncher v1.8.3
-server package…` then `[patcher] overlaying TavernLib v1.5.1 release asset…`.
-Later boots print `already patched for TavernLauncher v1.8.3+tavernlib-v1.5.1`
-— note the stamp format now records both pins. Force a re-patch without
+server package…`, then `[patcher] overlaying base patch (TavernDefaults
+v1.5.1)…` and `[patcher] overlaying TavernLib v1.5.1 release asset…`. Later
+boots print `already patched for TavernLauncher
+v1.8.3+tavernlib-v1.5.1+base-v1.5.1` — the stamp records all three pins, so
+bumping any one of them re-patches on the next boot. Force a re-patch without
 changing pins (repairs a half-patched folder):
 
 ```bash
@@ -85,6 +90,39 @@ only in the rebuilt asset. Hence the sha256 pin: `TAVERNLIB_SHA256` is
 pre-filled for the default `v1.5.1`, must be set (or deliberately blanked)
 when you pin anything else, and a mismatch stops the patch rather than booting
 a DLL nobody has vouched for.
+
+## The core patch moves on its own too — `v1.5.1`, 2026-08-11
+
+Same story, one layer down. The core patch (`themoddingtavern.dll`, copied over
+`Root.Township.dll`) is **not** versioned by the launcher: it ships from
+[ModdingTavern/TavernDefaults](https://github.com/ModdingTavern/TavernDefaults/releases),
+and the Windows launchers download **`releases/latest`** every time you press
+Patch. The copy inside a launcher zip is only a frozen offline fallback — so
+that copy silently goes stale while the launcher's version number stays put.
+
+That is exactly what happened here. TavernDefaults `v1.5.1` ("Whoops… Forgot to
+include the global populations hotfix! All is well now") was published on
+2026-08-11 with **no new launcher release**, so `TavernLauncher-Server-v1.8.3.zip`
+still carries the pre-hotfix `v1.5` build — and a kit that took the DLL from
+that zip would have stayed on it forever, because the patch stamp had no reason
+to change. The kit now overlays the pinned TavernDefaults asset the same way it
+overlays TavernLib:
+
+| Version | sha256 | |
+|---|---|---|
+| `v1.5` | `a4bd5661…577db643` | bundled in the v1.8.3 launcher zips |
+| `v1.5.1` | `06e1fc38…8063d735` | the global-populations hotfix, **the kit's default** |
+
+Set `BASEPATCH_VERSION=bundled` to go back to the zip's copy, or `latest` to
+track TavernDefaults the way the Windows launchers do.
+
+**Tell your players to press Patch.** Nothing pushes this to them: the
+launcher's Patch button only *flashes* when the installed DLL differs from the
+copy bundled beside it, and after a normal v1.8.3 patch those match — so a
+player who never clicks Patch again stays on `v1.5` and never sees a prompt.
+Clicking it downloads `v1.5.1`. (Side effect of upstream's design: once they do,
+the button flashes permanently, because the installed DLL now differs from the
+bundled one. Harmless.)
 
 ## Firewall
 
