@@ -51,7 +51,7 @@ TavernLauncher patch automatically).
    - A **root password** (write it down) — or an SSH key if the provider pushes one; a
      password is fine and simpler.
 3. After a minute or two the provider shows you the server's **IP address** (four numbers
-   like `144.126.133.142`). **Write this down** — it's both how you manage the server and
+   like `184.176.153.142`). **Write this down** — it's both how you manage the server and
    what your friends will type to join.
 
 ---
@@ -63,7 +63,7 @@ You'll type commands on the server through a black text window. Windows has this
 1. Open **Windows Terminal** or **PowerShell** (search for it in the Start menu).
 2. Type this, replacing the IP with **your** server's IP, and press Enter:
    ```
-   ssh root@144.126.133.142
+   ssh root@184.176.153.142
    ```
 3. The first time it asks *"Are you sure you want to continue connecting?"* — type **yes**
    and Enter.
@@ -91,7 +91,7 @@ install the free **PuTTY** program instead and connect to the same IP as `root`.
    first one connected). In the new window, run this, changing the path to where your
    `game.zip` is and the IP to your server:
    ```
-   scp "C:\Users\You\Desktop\game.zip" root@144.126.133.142:~/att-server-docker/game.zip
+   scp "C:\Users\You\Desktop\game.zip" root@184.176.153.142:~/att-server-docker/game.zip
    ```
    Enter the same root password. This copies the file up (a few GB — it can take a while
    depending on your internet upload speed).
