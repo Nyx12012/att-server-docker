@@ -162,7 +162,7 @@ Your friends do **not** need anything from you except your **IP address**. Each 
    — since v1.8.1, a new launcher refuses old servers and vice-versa. When an update
    lands, your server re-patches itself (`git pull` + restart, see the README) and they
    re-patch their game with the new launcher.
-2. Opens the launcher, **types your server's IP** (e.g. `144.126.133.142`), and clicks
+2. Opens the launcher, **types your server's IP** (e.g. `184.176.153.142`), and clicks
    **Join**. The first time, the launcher registers their username with your server —
    that's their account from then on (tell them not to lose it by reinstalling blindly).
 
